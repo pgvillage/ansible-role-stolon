@@ -1,7 +1,10 @@
 ---
 galaxy_info:
   author: S. Mannem
-  description: CTO
+  description: |
+    Stolon is a tool to manage HA PostgreSQL clusters.
+    Stolon uses etcd to store config and manage consensus.
+
   company: Nibble-IT
 
   # If the issue tracker for your role is not on github, uncomment the
