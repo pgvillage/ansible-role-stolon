@@ -69,7 +69,7 @@ stolon_config_dir: "/var/lib/pgsql/{{ stolon_pg_version }}/config"
 stolon_custom_config_file: "{{ stolon_config_dir }}/stolon_custom_config.yml"
 stolon_wal_dir: "{{ stolon_pg_datadir }}/pg_wal"
 stolon_proxy_listen_address: "{{ ansible_default_ipv4.address }}"
-stolon_uid: "{{ inventory_hostname_short | replace('-', '_') }}"
+stolon_uid: "{{ inventory_hostname_short | replace('-', '_') | lower }}"
 
 # Used for automatically setting work_mem
 # Set to 1 for transactional, and 4-16 for analytical

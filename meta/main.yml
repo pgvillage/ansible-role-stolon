@@ -1,5 +1,7 @@
 ---
 galaxy_info:
+  namespace: pgvillage
+  role_name: stolon
   author: S. Mannem
   description: |
     Stolon is a tool to manage HA PostgreSQL clusters.
