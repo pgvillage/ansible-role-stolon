@@ -59,7 +59,7 @@
 
 - name: Install local stolon packages when defined
   become: true
-  ansible.builtin.dnf:
+  ansible.builtin.package:
     name: "/tmp/{{ item }}"
     state: "{{ stolon_package_name_state }}"
     disable_gpg_check: "true"
@@ -67,7 +67,7 @@
 
 - name: Install stolon packages when defined
   become: true
-  ansible.builtin.dnf:
+  ansible.builtin.package:
     name: "{{ item }}"
     state: "{{ stolon_package_name_state }}"
     disable_gpg_check: "true"
