@@ -51,7 +51,7 @@
   until: stolon_pg_isready.rc == 0
   changed_when: false
 
-- name: Create an postgres users (hack)
+- name: Create postgres users (hack)
   become: true
   become_user: "postgres"
   community.postgresql.postgresql_user:
