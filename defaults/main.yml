@@ -38,7 +38,7 @@ stolon_services:
 
 stolon_pg_version: 17
 
-stolon_pg_listen_address: "{{ ansible_default_ipv4.address }}"
+stolon_pg_listen_address: "{{ ansible_facts.default_ipv4.address }}"
 stolon_pg_port: 5432
 
 stolon_user: postgres
@@ -58,17 +58,17 @@ stolon_pg_su_connection_type: hostssl
 
 stolon_cluster_name: stolon-cluster
 stolon_host_group: stolon
-stolon_cluster_hosts: "{% for host in groups[stolon_host_group] %}{{ hostvars[host]['ansible_fqdn'] }}{% if not loop.last %},{% endif %}{% endfor %}"
+stolon_cluster_hosts: "{% for host in groups[stolon_host_group] %}{{ hostvars[host].ansible_facts.fqdn }}{% if not loop.last %},{% endif %}{% endfor %}"
 
 stolon_store_backend: etcdv3
 
-stolon_proxy_host: "{{ ansible_fqdn }}"
+stolon_proxy_host: "{{ ansible_facts.fqdn }}"
 stolon_proxy_port: 25432
 stolon_data_dir: "/var/lib/pgsql/{{ stolon_pg_version }}/data"
 stolon_config_dir: "/var/lib/pgsql/{{ stolon_pg_version }}/config"
 stolon_custom_config_file: "{{ stolon_config_dir }}/stolon_custom_config.yml"
 stolon_wal_dir: "{{ stolon_pg_datadir }}/pg_wal"
-stolon_proxy_listen_address: "{{ ansible_default_ipv4.address }}"
+stolon_proxy_listen_address: "{{ ansible_facts.default_ipv4.address }}"
 stolon_uid: "{{ inventory_hostname_short | replace('-', '_') | lower }}"
 
 # Used for automatically setting work_mem
@@ -96,9 +96,9 @@ stolon_effective_cache_size_mb: "{{ [(stolon_available_memory_mb | int * stolon_
 stolon_wal_dir_size: "{{ stolon_get_wal_dir_size.stdout_lines[0] }}"
 stolon_min_wal_size_mb: "{{ [(stolon_wal_dir_size | int * stolon_min_wal_size_ratio / 1048576) | int, 80] | max }}"
 stolon_max_wal_size_mb: "{{ [(stolon_wal_dir_size | int * stolon_max_wal_size_ratio / 1048576) | int, 1024] | max }}"
-stolon_max_worker_processes: "{{ [ansible_processor_vcpus | int * stolon_workers_ratio | int, 8] | max }}"
-stolon_max_parallel_workers: "{{ [ansible_processor_vcpus | int * stolon_parallel_ratio | int, 8] | max }}"
-stolon_max_parallel_workers_per_gather: "{{ [ansible_processor_vcpus | int * stolon_gather_ratio | int, 2] | max }}"
+stolon_max_worker_processes: "{{ [ansible_facts.processor_vcpus | int * stolon_workers_ratio | int, 8] | max }}"
+stolon_max_parallel_workers: "{{ [ansible_facts.processor_vcpus | int * stolon_parallel_ratio | int, 8] | max }}"
+stolon_max_parallel_workers_per_gather: "{{ [ansible_facts.processor_vcpus | int * stolon_gather_ratio | int, 2] | max }}"
 stolon_private_mem_bytes: "{{ stolon_available_memory_mb | int - stolon_share_buffers_mb | int }}"
 stolon_work_mem_bytes: "{{ stolon_private_mem_bytes | int / stolon_max_connections / stolon_query_complexity }}"
 stolon_work_mem_kb: "{{ [(1024 * stolon_work_mem_bytes | int), 64] | max }}"
