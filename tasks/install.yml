@@ -62,7 +62,6 @@
   ansible.builtin.package:
     name: "/tmp/{{ item }}"
     state: "{{ stolon_package_name_state }}"
-    disable_gpg_check: "true"
   loop: "{{ stolon_local_package_names }}"
 
 - name: Install stolon packages when defined
@@ -70,7 +69,6 @@
   ansible.builtin.package:
     name: "{{ item }}"
     state: "{{ stolon_package_name_state }}"
-    disable_gpg_check: "true"
   loop: "{{ stolon_package_names }}"
 
 - name: Enable stolon_profile
