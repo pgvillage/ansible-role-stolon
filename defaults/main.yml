@@ -9,17 +9,32 @@ stolon_pkg_arch: amd64
 stolon_bin_path: "{{ stolon_release_path }}/stolon-{{ stolon_release }}-linux-{{ stolon_pkg_arch }}/bin"
 # If you add items to stolon_packages, the binaries will not be downloaded, but installed from package instead
 stolon_package_name_state: present
-stolon_package_names:
-  - stolon
-  - python3-psycopg3
-#  - "stolon-keeper"
-#  - "stolon-proxy"
-#  - "stolon-sentinel"
-#  - "postgresql{{ stolon_pg_version|replace('.','') }}"
-#  - "postgresql{{ stolon_pg_version|replace('.','') }}-server"
-#  - "postgresql{{ stolon_pg_version|replace('.','') }}-contrib"
-#  - "postgresql{{ stolon_pg_version|replace('.','') }}-devel"
-#  - "postgresql{{ stolon_pg_version|replace('.','') }}-plpython3"
+
+
+stolon_package_names: >-
+  {{
+    _stolon_packages.get(
+      ansible_facts.pkg_mgr,
+      _stolon_packages.default
+    )
+  }}
+
+_stolon_package_names:
+  default: # dnf, apt, etc.
+    - stolon
+    - python3-psycopg3
+    # - "stolon-keeper"
+    # - "stolon-proxy"
+    # - "stolon-sentinel"
+    # - "postgresql{{ stolon_pg_version|replace('.','') }}"
+    # - "postgresql{{ stolon_pg_version|replace('.','') }}-server"
+    # - "postgresql{{ stolon_pg_version|replace('.','') }}-contrib"
+    # - "postgresql{{ stolon_pg_version|replace('.','') }}-devel"
+    # - "postgresql{{ stolon_pg_version|replace('.','') }}-plpython3"
+
+  zypper:
+    - stolon
+    - python313-psycopg2
 
 stolon_local_package_names: []
 # With this we can apply sysctl config as required.
