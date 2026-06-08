@@ -6,6 +6,14 @@
     mode: "0600"
   notify: Apply sysctl changes
 
+- name: Create sysconfig folder
+  ansible.builtin.file:
+    path: /etc/sysconfig
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
 - name: Install sysconfig configuration
   become: true
   become_user: root

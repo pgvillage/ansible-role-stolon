@@ -10,7 +10,6 @@ stolon_bin_path: "{{ stolon_release_path }}/stolon-{{ stolon_release }}-linux-{{
 # If you add items to stolon_packages, the binaries will not be downloaded, but installed from package instead
 stolon_package_name_state: present
 
-
 stolon_package_names: >-
   {{
     _stolon_packages.get(
@@ -20,17 +19,17 @@ stolon_package_names: >-
   }}
 
 _stolon_package_names:
-  default: # dnf, apt, etc.
+  default:
     - stolon
     - python3-psycopg3
-    # - "stolon-keeper"
-    # - "stolon-proxy"
-    # - "stolon-sentinel"
-    # - "postgresql{{ stolon_pg_version|replace('.','') }}"
-    # - "postgresql{{ stolon_pg_version|replace('.','') }}-server"
-    # - "postgresql{{ stolon_pg_version|replace('.','') }}-contrib"
-    # - "postgresql{{ stolon_pg_version|replace('.','') }}-devel"
-    # - "postgresql{{ stolon_pg_version|replace('.','') }}-plpython3"
+
+  dnf:
+    - stolon
+    - python3-psycopg3
+
+  apt:
+    - stolon
+    - python3-psycopg2
 
   zypper:
     - stolon
