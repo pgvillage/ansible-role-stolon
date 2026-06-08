@@ -12,9 +12,9 @@ stolon_package_name_state: present
 
 stolon_package_names: >-
   {{
-    _stolon_packages.get(
+    _stolon_package_names.get(
       ansible_facts.pkg_mgr,
-      _stolon_packages.default
+      _stolon_package_names.default
     )
   }}
 
