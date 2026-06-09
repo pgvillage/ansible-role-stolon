@@ -71,11 +71,16 @@
     state: "{{ stolon_package_name_state }}"
   loop: "{{ stolon_package_names }}"
 
-- name: Enable stolon_profile
+- name: Enable profiles
   ansible.builtin.lineinfile:
-    path: "{{ getent_passwd[stolon_user][4] }}/.pgsql_profile"
-    line: "source {{ stolon_script_path }}/stolon_profile"
+    path: "{{ item.path }}"
+    line: "{{ item.line }}"
     create: "true"
     owner: "{{ stolon_user }}"
     group: "{{ stolon_group }}"
     mode: "0700"
+  loop:
+    - path: "{{ getent_passwd[stolon_user][4] }}/.pgsql_profile"
+      line: "source {{ stolon_script_path }}/stolon_profile"
+    - path: "{{ getent_passwd[stolon_user][4] }}/.bash_profile"
+      line: "[ -f ~/.pgsql_profile ] && source ~/.pgsql_profile"
