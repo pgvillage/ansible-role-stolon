@@ -4,28 +4,37 @@
 - name: Restart stolon-stkeeper
   become: true
   ansible.builtin.systemd:
-    name: "stolon-keeper.service"
+    name: "stolon-keeper{% if stolon_multicluster %}@{{ item}}{% endif %}.service"
     state: restarted
     enabled: "true"
     daemon_reload: "true"
+  loop: "{{ stolon_clusters.keys() }}"
+  loop_control:
+    label: "cluster: {{ item }}"
   throttle: 1
 
 - name: Restart stolon-stsentinel
   become: true
   ansible.builtin.systemd:
-    name: "stolon-sentinel.service"
+    name: "stolon-sentinel{% if stolon_multicluster %}@{{ item}}{% endif %}.service"
     state: restarted
     enabled: "true"
     daemon_reload: "true"
+  loop: "{{ stolon_clusters.keys() }}"
+  loop_control:
+    label: "cluster: {{ item }}"
   throttle: 1
 
 - name: Restart stolon-stproxy
   become: true
   ansible.builtin.systemd:
-    name: "stolon-proxy.service"
+    name: "stolon-proxy{% if stolon_multicluster %}@{{ item}}{% endif %}.service"
     state: restarted
     enabled: "true"
     daemon_reload: "true"
+  loop: "{{ stolon_clusters.keys() }}"
+  loop_control:
+    label: "cluster: {{ item }}"
   throttle: 1
 
 - name: Update cluster spec
@@ -34,9 +43,10 @@
   ansible.builtin.shell:
     cmd: '/usr/local/bin/stolonctl update --patch --file "${STOLONCTL_FILE}"'
   environment:
-    STOLONCTL_CLUSTER_NAME: "{{ stolon_cluster_name }}"
+    STOLONCTL_CLUSTER_NAME: "{{ item }}"
     STOLONCTL_STORE_BACKEND: "{{ stolon_store_backend }}"
-    STOLONCTL_FILE: "{{ stolon_custom_config_file }}"
+    STOLONCTL_FILE: "{{ stolon_custom_config_dir }}/stolon_custom_config{% if stolon_multicluster %}-{{ item }}{% endif %}.yml"
+  loop: "{{ stolon_clusters.keys() }}"
   run_once: true
   changed_when: false
 

@@ -1,11 +1,14 @@
 ---
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers
-- name: Start stolon systemd services
+
+- name: Start stolon systemd services (multi)
   become: true
   ansible.builtin.systemd:
-    name: "stolon-{{ item }}.service"
+    name: "stolon-{{ item.1 }}{% if stolon_multicluster %}@{{ item.0}}{% endif %}.service"
     state: started
     enabled: "true"
     daemon_reload: "true"
-  loop: "{{ stolon_services }}"
+  loop: "{{ stolon_clusters.keys() | product(stolon_services) | list }}"
+  loop_control:
+    label: "cluster: {{ item.0 }}, service: stolon-{{ item.1 }}@{{ item.0 }}.service"

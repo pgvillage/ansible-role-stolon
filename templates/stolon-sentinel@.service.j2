@@ -11,8 +11,8 @@ Type=simple
 User=postgres
 Group=postgres
 
-EnvironmentFile=-/etc/sysconfig/stolon-stsentinel
-Environment=STSENTINEL_CLUSTER_NAME={{ stolon_cluster_name }}
+EnvironmentFile=-/etc/sysconfig/stolon-stsentinel-%I
+Environment=STSENTINEL_CLUSTER_NAME=%I
 ExecStart=/usr/local/bin/stolon-sentinel
 
 [Install]

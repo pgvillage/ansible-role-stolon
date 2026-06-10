@@ -1,3 +1,7 @@
 export PGSERVICE=local
-eval $(sed -e '/#/d;s/^STSENTINEL/export STOLONCTL/' /etc/sysconfig/stolon-stsentinel )
-/usr/local/bin/stolonctl status | tail -11
+for P in /etc/sysconfig/stolon-stsentinel-*; do
+    F=$(basename "$P")
+    export STOLONCTL_CLUSTER_NAME=${F#stolon-stsentinel-}
+    eval $(sed -e '/#/d;s/^STSENTINEL/export STOLONCTL/' "$P" )
+    /usr/local/bin/stolonctl status | tail -11
+done
