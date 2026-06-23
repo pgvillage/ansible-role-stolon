@@ -1,1 +1,1 @@
-{{ stolon_custom_config | to_nice_json }}
+{{ stolon_default_custom_config | combine(custom_config, recursive=True) | to_nice_json }}

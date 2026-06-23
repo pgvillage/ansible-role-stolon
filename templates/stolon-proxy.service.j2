@@ -12,6 +12,7 @@ User=postgres
 Group=postgres
 
 EnvironmentFile=-/etc/sysconfig/stolon-stproxy
+Environment=STPROXY_CLUSTER_NAME={{ stolon_cluster_name }}
 ExecStart=/usr/local/bin/stolon-proxy
 
 [Install]

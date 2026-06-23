@@ -1,0 +1,55 @@
+---
+- name: Install sysconfig configuration
+  become: true
+  become_user: root
+  ansible.builtin.template:
+    src: "stolon.sysconfig.j2"
+    dest: "{{ sysconfig_file }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  loop: "{{ sysconfig | dict2items }}"
+  loop_control:
+    label: "{{ settings.key }}"
+    loop_var: settings
+  vars:
+    sysconfig_file: /etc/sysconfig/stolon-{{ settings.key }}{% if stolon_multicluster %}-{{ cluster.key }}{% endif %}
+    sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
+  notify: "Restart stolon-{{ settings.key }}"
+
+- name: Install custom_config file
+  become: true
+  become_user: root
+  ansible.builtin.template:
+    src: "custom_config.yml.j2"
+    dest: "{{ custom_config_file }}"
+    owner: "{{ stolon_user }}"
+    group: "{{ stolon_group }}"
+    mode: "0644"
+  vars:
+    custom_config_file: "{{ stolon_config_dir }}/stolon_custom_config{% if stolon_multicluster %}-{{ cluster.key }}{% endif %}.yml"
+    custom_config: "{{ cluster.value.custom_config }}"
+  notify:
+    - Update cluster spec
+
+- name: Init when needed
+  become: true
+  become_user: "{{ stolon_user }}"
+  ansible.builtin.shell:
+    cmd: "/usr/local/bin/stolonctl status || /usr/local/bin/stolonctl init -y"
+  args:
+    creates: "{{ sysconfig.stkeeper.pgdata_dir }}/PG_VERSION"
+    executable: "/bin/bash"
+  vars:
+    sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
+  environment:
+    STOLONCTL_CLUSTER_NAME: "{{ cluster.key }}"
+    STOLONCTL_STORE_BACKEND: "{{ sysconfig.stkeeper.store_backend }}"
+
+- name: Add logrotate
+  ansible.builtin.copy:
+    content: "{{ stolon_logrotate_config }}"
+    dest: /etc/logrotate.d/postgresql-{{ cluster.key }}
+    mode: "0644"
+    owner: root
+    group: root

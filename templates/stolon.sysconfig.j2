@@ -1,4 +1,4 @@
-# {{ item.key | upper() }}
-{% for name, value in item.value.items() %}
-{{ item.key | upper() }}_{{ name | upper() | replace('-','_') }}={{ value }}
+# {{ settings.key | upper() }}
+{% for name, value in settings.value.items() %}
+{{ settings.key | upper() }}_{{ name | upper() | replace('-','_') }}={{ value }}
 {% endfor %}
