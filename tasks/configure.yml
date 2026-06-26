@@ -28,7 +28,7 @@
   notify: "Restart stolon-st{{ item }}"
 
 - name: Config per cluster
-  include_tasks: tasks/configure-cluster.yml
+  ansible.builtin.include_tasks: tasks/configure-cluster.yml
   loop: "{{ stolon_clusters | dict2items }}"
   loop_control:
     loop_var: cluster

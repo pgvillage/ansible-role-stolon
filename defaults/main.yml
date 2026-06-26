@@ -76,15 +76,7 @@ stolon_multicluster: false
 
 stolon_clusters:
   "{{ stolon_cluster_name }}":
-    sysconfig:
-      stkeeper:
-        pg_port: "{{ stolon_pg_port }}"
-        data_dir: "{{ stolon_data_dir }}"
-        pgdata_dir: "{{ stolon_pg_datadir }}"
-        wal_dir: "{{ stolon_wal_dir }}"
-        pgwal_dir: "{{ stolon_wal_dir }}"
-      stproxy:
-        port: "{{ stolon_proxy_port }}"
+    sysconfig: "{{ stolon_sysconfig }}"
     custom_config:
       pgParameters:
         log_directory: "{{ stolon_pg_log_directory }}/{{ stolon_cluster_name }}"

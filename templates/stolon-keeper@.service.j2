@@ -12,7 +12,6 @@ User=postgres
 Group=postgres
 
 EnvironmentFile=-/etc/sysconfig/stolon-stkeeper-%I
-Environment=STKEEPER_CLUSTER_NAME=%I
 {% for key, value in stolon_keeper_extra_env_vars.items() %}
 Environment="{{ key }}={{ value }}"
 {% endfor %}

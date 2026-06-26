@@ -1,7 +1,7 @@
 ---
 
 - name: Assertions
-  assert:
+  ansible.builtin.assert:
     that:
       - not stolon_multicluster or (stolon_clusters | length > 0)
       - stolon_multicluster or (stolon_sysconfig | length > 0)
