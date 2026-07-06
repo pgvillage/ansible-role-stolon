@@ -276,3 +276,7 @@ stolon_logrotate_config: |
       missingok
       su root root
   }
+
+stolon_default_cgroups: {}
+  # CPUQuota: 200%
+  # MemoryHigh: 8G

@@ -1,0 +1,4 @@
+[Service]
+{% for key, value in cgroups.items() -%}
+{{ key }}={{ value }}
+{% endfor -%}

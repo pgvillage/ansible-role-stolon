@@ -17,6 +17,37 @@
     sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
   notify: "Restart stolon-{{ settings.key }}"
 
+- name: Systemd config folder
+  become: true
+  become_user: root
+  ansible.builtin.file:
+    path: "{{ configfolder }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  vars:
+    configfolder: /etc/systemd/system/stolon-keeper{% if stolon_multicluster %}@{{ cluster.key }}{% endif %}.service.d/
+    cgroups: "{{ stolon_default_cgroups | combine((cluster.value.cgroups|default({})), recursive=True) }}"
+  when:
+    - cgroups|length > 0
+
+- name: Configure cgroups
+  become: true
+  become_user: root
+  ansible.builtin.template:
+    src: "stolon.cgroups.j2"
+    dest: "{{ configfile }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  vars:
+    configfile: /etc/systemd/system/stolon-keeper{% if stolon_multicluster %}@{{ cluster.key }}{% endif %}.service.d/cgroups.conf
+    cgroups: "{{ stolon_default_cgroups | combine((cluster.value.cgroups|default({})), recursive=True) }}"
+  when:
+    - cgroups|length > 0
+  notify: "Restart stolon-stkeeper"
+
 - name: Install custom_config file
   become: true
   become_user: root
