@@ -52,16 +52,22 @@
   ansible.builtin.include_tasks: pglogging.yml
 - name: Start stolon
   ansible.builtin.include_tasks: start.yml
+
 - name: Wait for stolon port to be active
   ansible.builtin.command: "{{ stolon_pg_bin_path }}/pg_isready"
   environment:
     PGHOST: "/tmp"
-    PGPORT: "{{ stolon_pg_port }}"
+    PGPORT: "{{ pgport }}"
   retries: 60
   delay: 1
   register: stolon_pg_isready
   until: stolon_pg_isready.rc == 0
   changed_when: false
+  loop: "{{ stolon_clusters | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} on {{ pgport }}"
+  vars:
+    pgport: "{{ item.value.sysconfig.stkeeper.pg_port }}"
 
 - name: Create postgres users (hack)
   become: true
