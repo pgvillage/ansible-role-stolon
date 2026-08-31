@@ -1,6 +1,8 @@
 export PGSERVICE=local
-for P in /etc/sysconfig/stolon-stsentinel{% if stolon_multicluster %}-*{% endif %}; do
+for P in /etc/sysconfig/stolon-stsentinel-*; do
     F=$(basename "$P")
     eval $(sed -e '/#/d;s/^STSENTINEL/export STOLONCTL/' "$P" )
-    /usr/local/bin/stolonctl status | tail -11
+    echo "cluster: $STOLONCTL_CLUSTER_NAME"
+    /usr/local/bin/stolonctl status | sed -n '/===== Keepers\/DB tree =====/,${s/^/> /;p}'
+    echo
 done
