@@ -24,6 +24,8 @@
     owner: "{{ stolon_user }}"
     group: "{{ stolon_group }}"
     mode: "0755"
+  vars:
+    sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
   loop:
     - "{{ sysconfig.stkeeper.pgdata_dir }}"
     - "{{ sysconfig.stkeeper.wal_dir }}"

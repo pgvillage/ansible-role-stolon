@@ -53,7 +53,7 @@
 - name: Start stolon
   ansible.builtin.include_tasks: start.yml
 
-- name: Wait for stolon port to be active
+- name: "Wait for {{ pgport }} ({{ item.key }}) to be active"
   ansible.builtin.command: "{{ stolon_pg_bin_path }}/pg_isready"
   environment:
     PGHOST: "/tmp"
