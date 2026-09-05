@@ -1,21 +1,23 @@
-[local]
+{% for cluster_name, cluster_config in stolon_clusters.items() %}
+[{{ cluster_name }}-local]
 host=/tmp
-port={{ stolon_pg_port }}
+port={{ cluster_config.sysconfig.stkeeper.pg_port }}
 
-[proxy]
+[{{ cluster_name }}-proxy]
 host={{ stolon_proxy_host }}
-port={{ stolon_proxy_port }}
+port={{ cluster_config.sysconfig.stproxy.port }}
 sslmode=verify-full
 
-[master]
+[{{ cluster_name }}-master]
 host={{ stolon_cluster_hosts }}
-port={{ stolon_pg_port }}
+port={{ cluster_config.sysconfig.stkeeper.pg_port }}
 target_session_attrs=read-write
 sslmode=verify-full
 
 {% if stolon_pg_version >= 13 %}
-[standby]
+[{{ cluster_name }}-standby]
 host={{ stolon_cluster_hosts }}
-port={{ stolon_pg_port }}
+port={{ cluster_config.sysconfig.stkeeper.pg_port }}
 target_session_attrs=read-only
 {% endif %}
+{% endfor %}

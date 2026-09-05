@@ -17,6 +17,19 @@
     sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
   notify: "Restart stolon-{{ settings.key }}"
 
+- name: Create postgres folders
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ stolon_user }}"
+    group: "{{ stolon_group }}"
+    mode: "0750"
+  vars:
+    sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
+  loop:
+    - "{{ sysconfig.stkeeper.pgdata_dir }}"
+    - "{{ sysconfig.stkeeper.wal_dir }}"
+
 - name: Systemd config folder
   become: true
   become_user: root

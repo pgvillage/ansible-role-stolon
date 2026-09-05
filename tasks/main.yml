@@ -50,26 +50,16 @@
   when: stolon_cert_managed
 - name: Setup logging
   ansible.builtin.include_tasks: pglogging.yml
-- name: Start stolon
-  ansible.builtin.include_tasks: start.yml
-- name: Wait for stolon port to be active
-  ansible.builtin.command: "{{ stolon_pg_bin_path }}/pg_isready"
-  environment:
-    PGHOST: "/tmp"
-    PGPORT: "{{ stolon_pg_port }}"
-  retries: 60
-  delay: 1
-  register: stolon_pg_isready
-  until: stolon_pg_isready.rc == 0
-  changed_when: false
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
+- name: Start stolon per cluster
+  ansible.builtin.include_tasks: start-cluster.yml
+  loop: "{{ stolon_clusters | dict2items }}"
+  loop_control:
+    loop_var: cluster
+- name: Configure users per cluster
+  ansible.builtin.include_tasks: pgusers.yml
+  loop: "{{ stolon_clusters | dict2items }}"
+  loop_control:
+    loop_var: cluster
 
-- name: Create postgres users (hack)
-  become: true
-  become_user: "postgres"
-  community.postgresql.postgresql_user:
-    name: "{{ item }}"
-    role_attr_flags: SUPERUSER
-  environment:
-    PGSERVICE: master
-  run_once: true
-  loop: "{{ stolon_pgusers }}"
