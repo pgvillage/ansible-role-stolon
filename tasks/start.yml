@@ -1,14 +1,26 @@
 ---
-- name: Flush handlers
-  ansible.builtin.meta: flush_handlers
-
-- name: Start stolon systemd services (multi)
+- name: Start stolon systemd service
   become: true
   ansible.builtin.systemd:
-    name: "stolon-{{ item.1 }}{% if stolon_multicluster %}@{{ item.0}}{% endif %}.service"
+    name: "{{ service_name }}"
     state: started
     enabled: "true"
     daemon_reload: "true"
-  loop: "{{ stolon_clusters.keys() | product(stolon_services) | list }}"
+  loop: "{{ stolon_services }}"
   loop_control:
-    label: "cluster: {{ item.0 }}, service: stolon-{{ item.1 }}@{{ item.0 }}.service"
+    label: "{{ service_name }}"
+  vars:
+    service_name: "stolon-{{ item }}{% if stolon_multicluster %}@{{ cluster.key }}{% endif %}.service"
+
+- name: "Wait for {{ pgport }} to be active"
+  ansible.builtin.command: "{{ stolon_pg_bin_path }}/pg_isready"
+  environment:
+    PGHOST: "/tmp"
+    PGPORT: "{{ pgport }}"
+  retries: 60
+  delay: 1
+  register: stolon_pg_isready
+  until: stolon_pg_isready.rc == 0
+  changed_when: false
+  vars:
+    pgport: "{{ cluster.value.sysconfig.stkeeper.pg_port }}"

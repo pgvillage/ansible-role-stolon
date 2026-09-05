@@ -23,7 +23,7 @@
     state: directory
     owner: "{{ stolon_user }}"
     group: "{{ stolon_group }}"
-    mode: "0755"
+    mode: "0750"
   vars:
     sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
   loop:

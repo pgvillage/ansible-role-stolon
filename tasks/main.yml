@@ -50,24 +50,13 @@
   when: stolon_cert_managed
 - name: Setup logging
   ansible.builtin.include_tasks: pglogging.yml
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
 - name: Start stolon
   ansible.builtin.include_tasks: start.yml
-
-- name: "Wait for {{ pgport }} ({{ item.key }}) to be active"
-  ansible.builtin.command: "{{ stolon_pg_bin_path }}/pg_isready"
-  environment:
-    PGHOST: "/tmp"
-    PGPORT: "{{ pgport }}"
-  retries: 60
-  delay: 1
-  register: stolon_pg_isready
-  until: stolon_pg_isready.rc == 0
-  changed_when: false
   loop: "{{ stolon_clusters | dict2items }}"
   loop_control:
-    label: "{{ item.key }} on {{ pgport }}"
-  vars:
-    pgport: "{{ item.value.sysconfig.stkeeper.pg_port }}"
+    loop_var: cluster
 
 - name: Create postgres users (hack)
   become: true
