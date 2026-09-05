@@ -1,4 +1,7 @@
-export PGSERVICE=local
+# Find first local service
+PGSERVICE=$(grep -Po '(?<=\[).*-local(?=\])' .pg_service.conf | head -n1)
+export PGSERVICE
+
 for P in /etc/sysconfig/stolon-stsentinel-*; do
     F=$(basename "$P")
     eval $(sed -e '/#/d;s/^STSENTINEL/export STOLONCTL/' "$P" )
