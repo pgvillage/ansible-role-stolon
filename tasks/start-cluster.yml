@@ -12,7 +12,7 @@
   vars:
     service_name: "stolon-{{ item }}{% if stolon_multicluster %}@{{ cluster.key }}{% endif %}.service"
 
-- name: "Wait for {{ pgport }} to be active"
+- name: "Wait for stolon port to be active: {{ pg_port }}"
   ansible.builtin.command: "{{ stolon_pg_bin_path }}/pg_isready"
   environment:
     PGHOST: "/tmp"

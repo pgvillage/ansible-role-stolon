@@ -4,7 +4,7 @@
 - name: Restart stolon-stkeeper
   become: true
   ansible.builtin.systemd:
-    name: "stolon-keeper{% if stolon_multicluster %}@{{ item}}{% endif %}.service"
+    name: "stolon-keeper{% if stolon_multicluster %}@{{ item }}{% endif %}.service"
     state: restarted
     enabled: "true"
     daemon_reload: "true"
@@ -16,7 +16,7 @@
 - name: Restart stolon-stsentinel
   become: true
   ansible.builtin.systemd:
-    name: "stolon-sentinel{% if stolon_multicluster %}@{{ item}}{% endif %}.service"
+    name: "stolon-sentinel{% if stolon_multicluster %}@{{ item }}{% endif %}.service"
     state: restarted
     enabled: "true"
     daemon_reload: "true"
@@ -28,7 +28,7 @@
 - name: Restart stolon-stproxy
   become: true
   ansible.builtin.systemd:
-    name: "stolon-proxy{% if stolon_multicluster %}@{{ item}}{% endif %}.service"
+    name: "stolon-proxy{% if stolon_multicluster %}@{{ item }}{% endif %}.service"
     state: restarted
     enabled: "true"
     daemon_reload: "true"

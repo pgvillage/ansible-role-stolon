@@ -15,4 +15,4 @@
   loop_control:
     label: "{{ item }} on {{ cluster.key }}"
   vars:
-    pgusers: "{{ cluster.value.pgusers|default(stolon_pgusers) }}"
+    pgusers: "{{ cluster.value.pgusers | default(stolon_pgusers) }}"

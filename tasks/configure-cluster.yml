@@ -41,7 +41,7 @@
     mode: "0755"
   vars:
     configfolder: /etc/systemd/system/stolon-keeper{% if stolon_multicluster %}@{{ cluster.key }}{% endif %}.service.d/
-    cgroups: "{{ stolon_default_cgroups | combine((cluster.value.cgroups|default({})), recursive=True) }}"
+    cgroups: "{{ stolon_default_cgroups | combine((cluster.value.cgroups | default({})), recursive=True) }}"
   when:
     - cgroups|length > 0
 
@@ -56,7 +56,7 @@
     mode: "0644"
   vars:
     configfile: /etc/systemd/system/stolon-keeper{% if stolon_multicluster %}@{{ cluster.key }}{% endif %}.service.d/cgroups.conf
-    cgroups: "{{ stolon_default_cgroups | combine((cluster.value.cgroups|default({})), recursive=True) }}"
+    cgroups: "{{ stolon_default_cgroups | combine((cluster.value.cgroups | default({})), recursive=True) }}"
   when:
     - cgroups|length > 0
   notify: "Restart stolon-stkeeper"

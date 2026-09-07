@@ -35,6 +35,7 @@
 
 - name: Install stolon
   ansible.builtin.include_tasks: install.yml
+
 - name: Get size of wal dir in bytes
   ansible.builtin.shell:
     cmd: "set -o pipefail && df -B1 . | awk '{if(NR==2){print $4}}'"
@@ -45,21 +46,25 @@
 
 - name: Configure stolon
   ansible.builtin.include_tasks: configure.yml
+
 - name: Deploy certs
   ansible.builtin.include_tasks: certs.yml
   when: stolon_cert_managed
+
 - name: Setup logging
   ansible.builtin.include_tasks: pglogging.yml
+
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers
+
 - name: Start stolon per cluster
   ansible.builtin.include_tasks: start-cluster.yml
   loop: "{{ stolon_clusters | dict2items }}"
   loop_control:
     loop_var: cluster
+
 - name: Configure users per cluster
   ansible.builtin.include_tasks: pgusers.yml
   loop: "{{ stolon_clusters | dict2items }}"
   loop_control:
     loop_var: cluster
-
