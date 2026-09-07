@@ -3,7 +3,7 @@
 
 [Unit]
 Description=Runners to orchestrate a high-availability PostgreSQL
-After=syslog.target network.target stolon-sentinel.service
+After=syslog.target network.target stolon-sentinel@%I.service
 
 [Service]
 Type=simple

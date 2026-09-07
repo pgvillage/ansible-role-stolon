@@ -17,6 +17,19 @@
     sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
   notify: "Restart stolon-{{ settings.key }}"
 
+- name: Create postgres folders
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ stolon_user }}"
+    group: "{{ stolon_group }}"
+    mode: "0750"
+  vars:
+    sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
+  loop:
+    - "{{ sysconfig.stkeeper.pgdata_dir }}"
+    - "{{ sysconfig.stkeeper.wal_dir }}"
+
 - name: Systemd config folder
   become: true
   become_user: root
@@ -28,7 +41,7 @@
     mode: "0755"
   vars:
     configfolder: /etc/systemd/system/stolon-keeper{% if stolon_multicluster %}@{{ cluster.key }}{% endif %}.service.d/
-    cgroups: "{{ stolon_default_cgroups | combine((cluster.value.cgroups|default({})), recursive=True) }}"
+    cgroups: "{{ stolon_default_cgroups | combine((cluster.value.cgroups | default({})), recursive=True) }}"
   when:
     - cgroups|length > 0
 
@@ -43,7 +56,7 @@
     mode: "0644"
   vars:
     configfile: /etc/systemd/system/stolon-keeper{% if stolon_multicluster %}@{{ cluster.key }}{% endif %}.service.d/cgroups.conf
-    cgroups: "{{ stolon_default_cgroups | combine((cluster.value.cgroups|default({})), recursive=True) }}"
+    cgroups: "{{ stolon_default_cgroups | combine((cluster.value.cgroups | default({})), recursive=True) }}"
   when:
     - cgroups|length > 0
   notify: "Restart stolon-stkeeper"
