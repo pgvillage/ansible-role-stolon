@@ -26,9 +26,11 @@
     mode: "0750"
   vars:
     sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
+    custom_config: "{{ stolon_default_custom_config | combine(cluster.value.custom_config, recursive=True) }}"
   loop:
     - "{{ sysconfig.stkeeper.pgdata_dir }}"
     - "{{ sysconfig.stkeeper.wal_dir }}"
+    - "{{ custom_config.pgParameters.log_directory }}"
 
 - name: Systemd config folder
   become: true
