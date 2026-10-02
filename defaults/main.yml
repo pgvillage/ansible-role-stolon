@@ -266,7 +266,7 @@ stolon_pgusers:
 
 stolon_logrotate_config: |
   /var/log/postgresql/{% if stolon_multicluster %}{{ stolon_cluster_name }}/{% endif %}*.csv
-  /var/log/postgresql/*.log {
+  /var/log/postgresql/{% if stolon_multicluster %}{{ stolon_cluster_name }}/{% endif %}*.log {
       daily
       rotate 8
       copytruncate
