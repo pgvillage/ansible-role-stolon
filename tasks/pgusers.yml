@@ -1,5 +1,5 @@
 ---
-- name: "Create postgres users for {{ pgservice }}"
+- name: "Create postgres users for {{ cluster.key }}"
   become: true
   become_user: "postgres"
   community.postgresql.postgresql_user:

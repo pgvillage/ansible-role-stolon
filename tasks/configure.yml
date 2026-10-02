@@ -32,11 +32,3 @@
   loop: "{{ stolon_clusters | dict2items }}"
   loop_control:
     loop_var: cluster
-
-- name: Add logrotate
-  ansible.builtin.copy:
-    content: "{{ stolon_logrotate_config }}"
-    dest: /etc/logrotate.d/postgresql
-    mode: "0644"
-    owner: root
-    group: root
