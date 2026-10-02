@@ -198,11 +198,11 @@ stolon_pg_zip_retention: 2
 stolon_pg_cron_enabled: true
 stolon_pg_cron_mailto: "{{ stolon_user }}@{{ inventory_hostname }}"
 
-stolon_pg_jobs:
-  - name: Log cleanup
-    minute: 20
-    hour: 3
-    command: "{{ stolon_script_path }}/pg_log_cleanup.sh {{ stolon_pg_log_retention }} {{ stolon_pg_zip_retention }} {{ stolon_pg_log_directory }}"
+stolon_pg_jobs: []
+#  - name: Log cleanup
+#    minute: 20
+#    hour: 3
+#    command: "{{ stolon_script_path }}/pg_log_cleanup.sh {{ stolon_pg_log_retention }} {{ stolon_pg_zip_retention }} {{ stolon_pg_log_directory }}"
 
 stolon_cert_managed: true
 stolon_cert_folders:
