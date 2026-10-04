@@ -5,8 +5,6 @@ stolon_opt_path: "/opt/stolon"
 stolon_release_path: "{{ stolon_opt_path }}/{{ stolon_release }}"
 stolon_script_path: "{{ getent_passwd[stolon_user][4] }}/bin"
 stolon_binary_owner: root
-stolon_pkg_arch: amd64
-stolon_bin_path: "{{ stolon_release_path }}/stolon-{{ stolon_release }}-linux-{{ stolon_pkg_arch }}/bin"
 # If you add items to stolon_packages, the binaries will not be downloaded, but installed from package instead
 stolon_package_name_state: present
 
@@ -40,12 +38,6 @@ stolon_local_package_names: []
 stolon_sysctl: |
   vm.swappiness = 10
 
-stolon_binaries:
-  - stolon-keeper
-  - stolonctl
-  - stolon-proxy
-  - stolon-sentinel
-
 stolon_services:
   - keeper
   - proxy
@@ -60,7 +52,6 @@ stolon_user: postgres
 stolon_group: "{{ stolon_user }}"
 
 stolon_pg_bin_path: "/usr/pgsql-{{ stolon_pg_version }}/bin/"
-stolon_pg_base_dir: "/var/lib/pgsql/{{ stolon_pg_version }}"
 stolon_pg_datadir: "{{ stolon_data_dir }}/postgres"
 stolon_pg_certdir: "{{ stolon_data_dir }}/certs"
 
@@ -192,18 +183,6 @@ stolon_default_sysconfig:
 
 stolon_pg_log_directory: "{{ stolon_pg_datadir }}/log"
 stolon_pg_log_dir_mode: "0755"
-stolon_pg_log_retention: 14
-stolon_pg_zip_retention: 2
-
-stolon_pg_cron_enabled: true
-stolon_pg_cron_mailto: "{{ stolon_user }}@{{ inventory_hostname }}"
-
-stolon_pg_jobs: []
-#  - name: Log cleanup
-#    minute: 20
-#    hour: 3
-#    command: "{{ stolon_script_path }}/pg_log_cleanup.sh {{ stolon_pg_log_retention }} {{ stolon_pg_zip_retention }} {{ stolon_pg_log_directory }}"
-
 stolon_cert_managed: true
 stolon_cert_folders:
   client:
