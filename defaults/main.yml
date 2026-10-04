@@ -1,13 +1,26 @@
 ---
 # defaults file for stolon
+
+# ------------------------------------------------------------------------------
+# Installation
+# ------------------------------------------------------------------------------
+
+# Stolon release, used to build stolon_release_path.
 stolon_release: "v0.17.0b"
+# Base folder for stolon releases. Created by the role (owned by root).
 stolon_opt_path: "/opt/stolon"
+# Release specific folder under stolon_opt_path. Created by the role (owned by root).
 stolon_release_path: "{{ stolon_opt_path }}/{{ stolon_release }}"
+# Folder where helper scripts (demote.sh, movewal.sh, reinstate.sh, stolon_profile)
+# are deployed. Defaults to the `bin` folder in the home directory of stolon_user.
 stolon_script_path: "{{ getent_passwd[stolon_user][4] }}/bin"
+# User used (become_user) to create the stolon installation folders.
 stolon_binary_owner: root
-# If you add items to stolon_packages, the binaries will not be downloaded, but installed from package instead
+# State of the stolon packages (and local packages), e.g. `present` or `latest`.
 stolon_package_name_state: present
 
+# List of packages to install from the configured repositories.
+# By default this is selected from _stolon_package_names, based on the package manager of the target.
 stolon_package_names: >-
   {{
     _stolon_package_names.get(
@@ -16,6 +29,8 @@ stolon_package_names: >-
     )
   }}
 
+# Packages to install per package manager (key is ansible_facts.pkg_mgr).
+# The `default` key is used when the package manager is not listed.
 _stolon_package_names:
   default:
     - stolon
@@ -33,38 +48,72 @@ _stolon_package_names:
     - stolon
     - python313-psycopg2
 
+# List of local package files (from the role / playbook files path) that are copied to /tmp
+# on the target and installed from there.
 stolon_local_package_names: []
-# With this we can apply sysctl config as required.
+# Contents of /etc/sysctl.d/postgresql.conf. With this you can apply sysctl config as required.
 stolon_sysctl: |
   vm.swappiness = 10
 
+# Stolon components for which systemd services are deployed and started.
+# Each item `<x>` maps to the template `stolon-<x>.service.j2` (or `stolon-<x>@.service.j2` in multicluster mode).
 stolon_services:
   - keeper
   - proxy
   - sentinel
 
+# ------------------------------------------------------------------------------
+# PostgreSQL
+# ------------------------------------------------------------------------------
+
+# Major PostgreSQL version. Used to derive paths, and to determine pg_service.conf features.
 stolon_pg_version: 17
 
+# Address the keeper configures PostgreSQL to listen on (STKEEPER_PG_LISTEN_ADDRESS).
 stolon_pg_listen_address: "{{ ansible_facts.default_ipv4.address }}"
+# Port PostgreSQL listens on (single cluster mode).
 stolon_pg_port: 5432
 
+# OS user that runs stolon / PostgreSQL and owns its files.
 stolon_user: postgres
+# OS group that owns the stolon / PostgreSQL files.
 stolon_group: "{{ stolon_user }}"
 
+# Folder containing the PostgreSQL binaries (STKEEPER_PG_BIN_PATH, pg_isready).
 stolon_pg_bin_path: "/usr/pgsql-{{ stolon_pg_version }}/bin/"
+# PostgreSQL data directory (STKEEPER_PGDATA_DIR).
 stolon_pg_datadir: "{{ stolon_data_dir }}/postgres"
+# Folder for the PostgreSQL server certificates (key, cert and client CA chain).
 stolon_pg_certdir: "{{ stolon_data_dir }}/certs"
 
+# User the keepers use for replication (STKEEPER_PG_REPL_USERNAME).
 stolon_pg_repl_username: postgres
+# Authentication method for replication connections (STKEEPER_PG_REPL_AUTH_METHOD), e.g. `cert` or `md5`.
 stolon_pg_repl_auth_method: cert
+# pg_hba connection type for replication connections (STKEEPER_PG_REPL_CONNECTION_TYPE), e.g. `host` or `hostssl`.
 stolon_pg_repl_connection_type: hostssl
 
+# Authentication method for superuser connections (STKEEPER_PG_SU_AUTH_METHOD), e.g. `cert` or `md5`.
 stolon_pg_su_auth_method: cert
+# pg_hba connection type for superuser connections (STKEEPER_PG_SU_CONNECTION_TYPE), e.g. `host` or `hostssl`.
 stolon_pg_su_connection_type: hostssl
 
+# ------------------------------------------------------------------------------
+# Cluster(s)
+# ------------------------------------------------------------------------------
+
+# Name of the stolon cluster (single cluster mode).
 stolon_cluster_name: stolon-cluster
+# When true, systemd template units (stolon-<x>@<cluster>.service) and per-cluster
+# sysconfig / custom_config / logrotate files are used, so multiple clusters can run on one host.
 stolon_multicluster: false
 
+# Dictionary of clusters to deploy. The key is the cluster name. Every cluster can have:
+# - sysconfig:     settings per component (stsentinel, stkeeper, stproxy), merged over stolon_default_sysconfig
+# - custom_config: stolon cluster spec, merged over stolon_default_custom_config
+# - cgroups:       (optional) systemd [Service] settings for the keeper, merged over stolon_default_cgroups
+# - pgusers:       (optional) list of superusers to create, overrides stolon_pgusers
+# By default a single cluster named stolon_cluster_name is defined.
 stolon_clusters:
   "{{ stolon_cluster_name }}":
     sysconfig: "{{ stolon_sysconfig }}"
@@ -72,57 +121,105 @@ stolon_clusters:
       pgParameters:
         log_directory: "{{ stolon_pg_log_directory }}/{{ stolon_cluster_name }}"
 
+# Inventory group containing all hosts of the stolon cluster.
 stolon_host_group: stolon
+# Comma separated list of the fqdn's of all hosts in stolon_host_group.
+# Used in pg_service.conf and for connecting to the primary when creating users.
 stolon_cluster_hosts: "{% for host in groups[stolon_host_group] %}{{ hostvars[host].ansible_facts.fqdn }}{% if not loop.last %},{% endif %}{% endfor %}"
 
+# Stolon store backend (e.g. `etcdv3`, `etcdv2`, `consul`, `kubernetes`).
 stolon_store_backend: etcdv3
 
+# Hostname used to connect to the stolon proxy (pg_service.conf `<cluster>-proxy` entry).
 stolon_proxy_host: "{{ ansible_facts.fqdn }}"
+# Port the stolon proxy listens on (single cluster mode).
 stolon_proxy_port: 25432
+# Stolon data directory (STKEEPER_DATA_DIR).
 stolon_data_dir: "/var/lib/pgsql/{{ stolon_pg_version }}/data"
+# Folder for the stolon custom config (cluster spec) files.
 stolon_config_dir: "/var/lib/pgsql/{{ stolon_pg_version }}/config"
+# Path of the stolon custom config (cluster spec) file.
 stolon_custom_config_file: "{{ stolon_config_dir }}/stolon_custom_config.yml"
+# Folder of stolon_custom_config_file. Used by the handler that applies the cluster spec.
 stolon_custom_config_dir: "{{ stolon_custom_config_file | dirname }}"
+# PostgreSQL WAL directory (STKEEPER_WAL_DIR / STKEEPER_PGWAL_DIR).
+# The free space on this filesystem is used to calculate min_wal_size and max_wal_size.
 stolon_wal_dir: "{{ stolon_pg_datadir }}/pg_wal"
+# Address the stolon proxy listens on (STPROXY_LISTEN_ADDRESS).
 stolon_proxy_listen_address: "{{ ansible_facts.default_ipv4.address }}"
+# Unique id of the keeper (STKEEPER_UID). Must be unique within the cluster.
 stolon_uid: "{{ inventory_hostname_short | replace('-', '_') | lower }}"
 
-# Used for automatically setting work_mem
-# Set to 1 for transactional, and 4-16 for analytical
-# Consider the averga amount of operations (merge, sort, group, etc.) per query
+# ------------------------------------------------------------------------------
+# Autoconfig (PostgreSQL resource parameters derived from the host resources)
+# ------------------------------------------------------------------------------
+
+# Used for automatically setting work_mem.
+# Set to 1 for transactional, and 4-16 for analytical workloads.
+# Consider the average amount of operations (merge, sort, group, etc.) per query.
 stolon_query_complexity: 4
 
-# You can reserve memory not te be used by Postgres
+# Memory (in MB) reserved for other processes, which is not to be used by Postgres in calculations.
 stolon_reserved_memory_mb: 0
 
+# PostgreSQL max_connections. Also used to calculate work_mem.
 stolon_max_connections: 100
 
 # Autoconfig ratios
+# shared_buffers as fraction of available memory
 stolon_shared_buffers_ratio: 0.25
+# effective_cache_size as fraction of available memory
 stolon_eff_cache_ratio: 0.75
+# min_wal_size as fraction of free space on the WAL filesystem
 stolon_min_wal_size_ratio: 0.25
+# max_wal_size as fraction of free space on the WAL filesystem
 stolon_max_wal_size_ratio: 0.75
+# max_worker_processes per vCPU
 stolon_workers_ratio: 4
+# max_parallel_workers per vCPU
 stolon_parallel_ratio: 4
+# max_parallel_workers_per_gather per vCPU
 stolon_gather_ratio: 1
 
-# Autoconfig calculations
+# Autoconfig calculations (normally there is no need to change these, change the ratios instead)
+# shared_buffers in MB (minimum 8)
 stolon_share_buffers_mb: "{{ [(stolon_available_memory_mb | int * stolon_shared_buffers_ratio) | int, 8] | max }}"
+# effective_cache_size in MB (minimum 1)
 stolon_effective_cache_size_mb: "{{ [(stolon_available_memory_mb | int * stolon_eff_cache_ratio) | int, 1] | max }}"
+# Free space (in bytes) on the filesystem of stolon_wal_dir, as detected by the role
 stolon_wal_dir_size: "{{ stolon_get_wal_dir_size.stdout_lines[0] }}"
+# min_wal_size in MB (minimum 80)
 stolon_min_wal_size_mb: "{{ [(stolon_wal_dir_size | int * stolon_min_wal_size_ratio / 1048576) | int, 80] | max }}"
+# max_wal_size in MB (minimum 1024)
 stolon_max_wal_size_mb: "{{ [(stolon_wal_dir_size | int * stolon_max_wal_size_ratio / 1048576) | int, 1024] | max }}"
+# max_worker_processes (minimum 8)
 stolon_max_worker_processes: "{{ [ansible_facts.processor_vcpus | int * stolon_workers_ratio | int, 8] | max }}"
+# max_parallel_workers (minimum 8)
 stolon_max_parallel_workers: "{{ [ansible_facts.processor_vcpus | int * stolon_parallel_ratio | int, 8] | max }}"
+# max_parallel_workers_per_gather (minimum 2)
 stolon_max_parallel_workers_per_gather: "{{ [ansible_facts.processor_vcpus | int * stolon_gather_ratio | int, 2] | max }}"
+# Memory available for backends (available memory minus shared_buffers, in MB despite the name)
 stolon_private_mem_bytes: "{{ stolon_available_memory_mb | int - stolon_share_buffers_mb | int }}"
+# Memory per operation (private memory / max_connections / query complexity, in MB despite the name)
 stolon_work_mem_bytes: "{{ stolon_private_mem_bytes | int / stolon_max_connections / stolon_query_complexity }}"
+# work_mem in kB (minimum 64)
 stolon_work_mem_kb: "{{ [(1024 * stolon_work_mem_bytes | int), 64] | max }}"
 
-# You can easilly set this to another profile if you want to. Or define your own...
+# Autoconfig profile: dictionary of PostgreSQL parameters derived from the calculations above.
+# You can easily set this to another profile if you want to. Or define your own...
 stolon_autoconfig: "{{ stolon_autoconfig_default }}"
 
+# ------------------------------------------------------------------------------
+# Stolon cluster spec (custom config)
+# More info:
+# - https://github.com/sorintlab/stolon/blob/master/doc/cluster_spec.md
+# - https://github.com/sorintlab/stolon/blob/master/doc/postgres_parameters.md
+# - https://github.com/sorintlab/stolon/blob/master/doc/custom_pg_hba_entries.md
+# ------------------------------------------------------------------------------
+
+# All PostgreSQL parameters: stolon_autoconfig, merged with stolon_extra_pg_parameters and stolon_ssl_pg_parameters.
 stolon_pg_parameters: "{{ stolon_autoconfig | combine(stolon_extra_pg_parameters) | combine(stolon_ssl_pg_parameters) }}"
+# Additional PostgreSQL parameters (by default logging settings). Overrides values from stolon_autoconfig.
 stolon_extra_pg_parameters:
   log_destination: "csvlog"
   logging_collector: "true"
@@ -140,16 +237,20 @@ stolon_extra_pg_parameters:
   log_disconnections: "true"
   log_truncate_on_rotation: "true"
 
+# List of custom pg_hba.conf entries (cluster spec pgHBA).
 stolon_pg_hba: []
+# Default stolon cluster spec. The custom_config of every cluster in stolon_clusters is merged over this.
 stolon_default_custom_config:
   defaultSUReplAccessMode: "strict"
   pgParameters: "{{ stolon_pg_parameters }}"
   pgHBA: "{{ stolon_pg_hba }}"
-# More info:
-# - https://github.com/sorintlab/stolon/blob/master/doc/cluster_spec.md):
-# - https://github.com/sorintlab/stolon/blob/master/doc/postgres_parameters.md
-# - https://github.com/sorintlab/stolon/blob/master/doc/custom_pg_hba_entries.md
 
+# ------------------------------------------------------------------------------
+# Stolon component configuration (/etc/sysconfig/stolon-<component>[-<cluster>])
+# Every key is written as <COMPONENT>_<KEY> (uppercase, `-` replaced by `_`).
+# ------------------------------------------------------------------------------
+
+# Cluster specific component settings (single cluster mode). Used as sysconfig in the default stolon_clusters.
 stolon_sysconfig:
   stsentinel:
     cluster_name: "{{ stolon_cluster_name }}"
@@ -164,6 +265,7 @@ stolon_sysconfig:
     cluster_name: "{{ stolon_cluster_name }}"
     port: "{{ stolon_proxy_port }}"
 
+# Component settings shared by all clusters. The sysconfig of every cluster in stolon_clusters is merged over this.
 stolon_default_sysconfig:
   stsentinel:
     store_backend: "{{ stolon_store_backend }}"
@@ -181,9 +283,22 @@ stolon_default_sysconfig:
     store_backend: "{{ stolon_store_backend }}"
     listen-address: "{{ stolon_proxy_listen_address }}"
 
+# ------------------------------------------------------------------------------
+# Logging
+# ------------------------------------------------------------------------------
+
+# PostgreSQL log directory. Created by the role when it is outside stolon_pg_datadir.
 stolon_pg_log_directory: "{{ stolon_pg_datadir }}/log"
+# Mode of stolon_pg_log_directory (when created by the role).
 stolon_pg_log_dir_mode: "0755"
+
+# ------------------------------------------------------------------------------
+# Certificates
+# ------------------------------------------------------------------------------
+
+# When true, the role validates and deploys the client and server certificates (stolon_cert_files).
 stolon_cert_managed: true
+# Folders to create for certificates (mode 0700). `client` is used by libpq, `server` by PostgreSQL.
 stolon_cert_folders:
   client:
     path: "{{ getent_passwd[stolon_user][4] }}/.postgresql"
@@ -192,6 +307,8 @@ stolon_cert_folders:
     path: "{{ stolon_pg_certdir }}"
     owner: "{{ stolon_user }}"
 
+# PEM contents of the client certificate, chain and key, and server certificate, key and chain.
+# The placeholders must be replaced (e.g. by chainsmith) when stolon_cert_managed is true.
 stolon_client_cert: "---- CCERT ----"
 stolon_client_chain: "---- CCHAIN ----"
 stolon_client_key: "---- CKEY ----"
@@ -199,6 +316,7 @@ stolon_server_cert: "---- SCERT ----"
 stolon_server_key: "---- SKEY ----"
 stolon_server_chain: "---- SCHAIN ----"
 
+# Certificate files to deploy (mode 0600). Every item has a path, body (contents) and owner.
 stolon_cert_files:
   client_cert:
     path: "{{ stolon_cert_folders.client.path }}/postgresql.crt"
@@ -221,28 +339,37 @@ stolon_cert_files:
     path: "{{ stolon_cert_folders.server.path }}/server.key"
     body: "{{ stolon_server_key }}"
     owner: "{{ stolon_cert_folders.server.owner }}"
-    # The chain of the server should be installed with the client for libpq to verify the server's cert
   server_chain:
+    # The chain of the server should be installed with the client for libpq to verify the server's cert
     path: "{{ stolon_cert_folders.client.path }}/root.crt"
     body: "{{ stolon_server_chain }}"
     owner: "{{ stolon_cert_folders.client.owner }}"
 
+# PostgreSQL ssl parameters, pointing to the deployed certificate files.
 stolon_ssl_pg_parameters:
   ssl_cert_file: "{{ stolon_cert_files.server_cert.path }}"
   ssl_key_file: "{{ stolon_cert_files.server_key.path }}"
   ssl_ca_file: "{{ stolon_cert_files.client_chain.path }}"
   ssl: "true"
 
+# ------------------------------------------------------------------------------
+# Miscellaneous
+# ------------------------------------------------------------------------------
+
+# Extra environment variables for the stolon-keeper systemd service (and thus PostgreSQL), e.g.:
 stolon_keeper_extra_env_vars: {}
 #  ORACLE_HOME: /usr/lib/oracle/21/client64
 #  LD_LIBRARY_PATH: /usr/lib/oracle/21/client64/lib
 #  TNS_ADMIN: /usr/lib/oracle/21/client64/network/admin
 
+# PostgreSQL users to create (as SUPERUSER) on the primary of every cluster.
+# Can be overridden per cluster with `pgusers` in stolon_clusters.
 stolon_pgusers:
   - pgroute66
   - nrpe
   - pgquartz
 
+# Contents of the logrotate config, deployed as /etc/logrotate.d/postgresql-<cluster>.
 stolon_logrotate_config: |
   /var/log/postgresql/{% if stolon_multicluster %}{{ stolon_cluster_name }}/{% endif %}*.csv
   /var/log/postgresql/{% if stolon_multicluster %}{{ stolon_cluster_name }}/{% endif %}*.log {
@@ -256,6 +383,7 @@ stolon_logrotate_config: |
       su root root
   }
 
+# systemd [Service] settings (cgroups) for the stolon-keeper service, e.g.:
 stolon_default_cgroups: {}
   # CPUQuota: 200%
   # MemoryHigh: 8G
