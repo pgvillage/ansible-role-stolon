@@ -370,9 +370,10 @@ stolon_pgusers:
   - pgquartz
 
 # Contents of the logrotate config, deployed as /etc/logrotate.d/postgresql-<cluster>.
+# log_directory is supplied by the task from the current cluster's merged PostgreSQL parameters.
 stolon_logrotate_config: |
-  /var/log/postgresql/{% if stolon_multicluster %}{{ stolon_cluster_name }}/{% endif %}*.csv
-  /var/log/postgresql/{% if stolon_multicluster %}{{ stolon_cluster_name }}/{% endif %}*.log {
+  {{ log_directory }}/*.csv
+  {{ log_directory }}/*.log {
       daily
       rotate 8
       copytruncate
