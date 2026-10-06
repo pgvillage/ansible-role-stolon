@@ -49,7 +49,7 @@ Default `_stolon_package_names`:
 | `stolon_pg_version` | `17` | Major PostgreSQL version. Used to derive paths, and to determine `pg_service.conf` features. |
 | `stolon_pg_listen_address` | `{{ ansible_facts.default_ipv4.address }}` | Address the keeper configures PostgreSQL to listen on (`STKEEPER_PG_LISTEN_ADDRESS`). |
 | `stolon_pg_port` | `5432` | Port PostgreSQL listens on (single cluster mode). |
-| `stolon_user` | `postgres` | OS user that is sopposed to run stolon / PostgreSQL and own its files. (the jinja templates still contain the postgres user hardcoded however.) |
+| `stolon_user` | `postgres` | OS user that is supposed to run stolon / PostgreSQL and own its files. (the jinja templates still contain the postgres user hardcoded however.) |
 | `stolon_group` | `{{ stolon_user }}` | OS group that owns the stolon / PostgreSQL files. |
 | `stolon_pg_bin_path` | `/usr/pgsql-{{ stolon_pg_version }}/bin/` | Folder containing the PostgreSQL binaries (`STKEEPER_PG_BIN_PATH`, `pg_isready`). |
 | `stolon_pg_datadir` | `{{ stolon_data_dir }}/postgres` | PostgreSQL data directory (`STKEEPER_PGDATA_DIR`). |
