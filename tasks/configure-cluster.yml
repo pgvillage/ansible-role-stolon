@@ -99,3 +99,6 @@
     mode: "0644"
     owner: root
     group: root
+  vars:
+    custom_config: "{{ stolon_default_custom_config | combine(cluster.value.custom_config, recursive=True) }}"
+    log_directory: "{{ custom_config.pgParameters.log_directory }}"
