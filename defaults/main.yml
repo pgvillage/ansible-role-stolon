@@ -109,7 +109,9 @@ stolon_cluster_name: stolon-cluster
 stolon_multicluster: false
 
 # Dictionary of clusters to deploy. The key is the cluster name. Every cluster can have:
-# - sysconfig:     (optional) settings per component (stsentinel, stkeeper, stproxy), merged over stolon_default_sysconfig
+# - sysconfig:     (required) settings per component (stsentinel, stkeeper, stproxy), merged over stolon_default_sysconfig.
+#                  Cluster specific keys (stkeeper.cluster_name, pg_port, data_dir, pgdata_dir, wal_dir, pgwal_dir,
+#                  stsentinel.cluster_name, stproxy.cluster_name, port) have no shared defaults and must be set here.
 # - custom_config: (optional) stolon cluster spec, merged over stolon_default_custom_config
 # - cgroups:       (optional) systemd [Service] settings for the keeper, merged over stolon_default_cgroups
 # - pgusers:       (optional) list of superusers to create, overrides stolon_pgusers
