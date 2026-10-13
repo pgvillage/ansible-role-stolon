@@ -86,8 +86,8 @@ The key of every item is the cluster name. Every cluster supports:
 
 | Key | Required | Description |
 |-----|----------|-------------|
-| `sysconfig` | yes | Settings per component (`stsentinel`, `stkeeper`, `stproxy`), merged over `stolon_default_sysconfig`. `stkeeper.pg_port` and `stproxy.port` are required. |
-| `custom_config` | yes | Stolon cluster spec, merged over `stolon_default_custom_config`. |
+| `sysconfig` | no | Settings per component (`stsentinel`, `stkeeper`, `stproxy`), merged over `stolon_default_sysconfig`. When omitted, `stolon_default_sysconfig` is used as is. Note that `stkeeper.pg_port` and `stproxy.port` are not part of the defaults and are read from the cluster's own `sysconfig`, so they must still be set here. |
+| `custom_config` | no | Stolon cluster spec, merged over `stolon_default_custom_config`. When omitted, `stolon_default_custom_config` is used as is. |
 | `cgroups` | no | systemd `[Service]` settings for the keeper, merged over `stolon_default_cgroups`. |
 | `pgusers` | no | List of superusers to create, overrides `stolon_pgusers`. |
 
