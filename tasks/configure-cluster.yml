@@ -14,7 +14,7 @@
     loop_var: settings
   vars:
     sysconfig_file: /etc/sysconfig/stolon-{{ settings.key }}{% if stolon_multicluster %}-{{ cluster.key }}{% endif %}
-    sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
+    sysconfig: "{{ stolon_default_sysconfig | combine((cluster.value.sysconfig | default({})), recursive=True) }}"
   notify: "Restart stolon-{{ settings.key }}"
 
 - name: Create postgres folders
@@ -25,8 +25,8 @@
     group: "{{ stolon_group }}"
     mode: "0750"
   vars:
-    sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
-    custom_config: "{{ stolon_default_custom_config | combine(cluster.value.custom_config, recursive=True) }}"
+    sysconfig: "{{ stolon_default_sysconfig | combine((cluster.value.sysconfig | default({})), recursive=True) }}"
+    custom_config: "{{ stolon_default_custom_config | combine((cluster.value.custom_config | default({})), recursive=True) }}"
   loop:
     - "{{ sysconfig.stkeeper.pgdata_dir }}"
     - "{{ sysconfig.stkeeper.wal_dir }}"
@@ -74,7 +74,7 @@
     mode: "0644"
   vars:
     custom_config_file: "{{ stolon_config_dir }}/stolon_custom_config{% if stolon_multicluster %}-{{ cluster.key }}{% endif %}.yml"
-    custom_config: "{{ cluster.value.custom_config }}"
+    custom_config: "{{ cluster.value.custom_config | default({}) }}"
   notify:
     - Update cluster spec
 
@@ -87,7 +87,7 @@
     creates: "{{ sysconfig.stkeeper.pgdata_dir }}/PG_VERSION"
     executable: "/bin/bash"
   vars:
-    sysconfig: "{{ stolon_default_sysconfig | combine(cluster.value.sysconfig, recursive=True) }}"
+    sysconfig: "{{ stolon_default_sysconfig | combine((cluster.value.sysconfig | default({})), recursive=True) }}"
   environment:
     STOLONCTL_CLUSTER_NAME: "{{ cluster.key }}"
     STOLONCTL_STORE_BACKEND: "{{ sysconfig.stkeeper.store_backend }}"
@@ -100,5 +100,5 @@
     owner: root
     group: root
   vars:
-    custom_config: "{{ stolon_default_custom_config | combine(cluster.value.custom_config, recursive=True) }}"
+    custom_config: "{{ stolon_default_custom_config | combine((cluster.value.custom_config | default({})), recursive=True) }}"
     log_directory: "{{ custom_config.pgParameters.log_directory }}"

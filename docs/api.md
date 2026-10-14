@@ -86,8 +86,8 @@ The key of every item is the cluster name. Every cluster supports:
 
 | Key | Required | Description |
 |-----|----------|-------------|
-| `sysconfig` | yes | Settings per component (`stsentinel`, `stkeeper`, `stproxy`), merged over `stolon_default_sysconfig`. `stkeeper.pg_port` and `stproxy.port` are required. |
-| `custom_config` | yes | Stolon cluster spec, merged over `stolon_default_custom_config`. |
+| `sysconfig` | yes | Settings per component (`stsentinel`, `stkeeper`, `stproxy`), merged over `stolon_default_sysconfig`. The cluster-specific keys have no shared defaults (they would collide between clusters) and are required: `stkeeper.cluster_name`, `stkeeper.pg_port`, `stkeeper.data_dir`, `stkeeper.pgdata_dir`, `stkeeper.wal_dir`, `stkeeper.pgwal_dir`, `stsentinel.cluster_name`, `stproxy.cluster_name` and `stproxy.port`. |
+| `custom_config` | no | Stolon cluster spec, merged over `stolon_default_custom_config`. When omitted, `stolon_default_custom_config` is used as is. |
 | `cgroups` | no | systemd `[Service]` settings for the keeper, merged over `stolon_default_cgroups`. |
 | `pgusers` | no | List of superusers to create, overrides `stolon_pgusers`. |
 
@@ -195,7 +195,7 @@ appended in multicluster mode). Every key is written as `<COMPONENT>_<KEY>`
 
 | Variable | Description |
 |----------|-------------|
-| `stolon_sysconfig` | Cluster specific component settings (single cluster mode). Used as `sysconfig` in the default `stolon_clusters`. |
+| `stolon_sysconfig` | Cluster-specific component settings (single cluster mode). Used as `sysconfig` in the default `stolon_clusters`. |
 | `stolon_default_sysconfig` | Component settings shared by all clusters. The `sysconfig` of every cluster in `stolon_clusters` is merged over this. |
 
 Defaults:
