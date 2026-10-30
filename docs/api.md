@@ -25,6 +25,7 @@ playbook or extra vars.
 | `stolon_opt_path` | `/opt/stolon` | Base folder for stolon releases. Created by the role (owned by root). |
 | `stolon_release_path` | `{{ stolon_opt_path }}/{{ stolon_release }}` | Release specific folder under `stolon_opt_path`. Created by the role (owned by root). |
 | `stolon_script_path` | `<home of stolon_user>/bin` | Folder where helper scripts (`demote.sh`, `movewal.sh`, `reinstate.sh`, `stolon_profile`) are deployed. |
+| `stolon_bin_path` | `/usr/bin` | Folder containing the stolon binaries (`stolonctl`, `stolon-keeper`, `stolon-sentinel`, `stolon-proxy`). Used in the systemd units, handlers, tasks and helper scripts. |
 | `stolon_binary_owner` | `root` | User used (`become_user`) to create the stolon installation folders. |
 | `stolon_package_name_state` | `present` | State of the stolon packages (and local packages), e.g. `present` or `latest`. |
 | `stolon_package_names` | selected from `_stolon_package_names` | List of packages to install from the configured repositories. By default selected from `_stolon_package_names` based on `ansible_facts.pkg_mgr`. |

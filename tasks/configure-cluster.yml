@@ -82,7 +82,7 @@
   become: true
   become_user: "{{ stolon_user }}"
   ansible.builtin.shell:
-    cmd: "/usr/bin/stolonctl status || /usr/bin/stolonctl init -y"
+    cmd: "{{ stolon_bin_path }}/stolonctl status || {{ stolon_bin_path }}/stolonctl init -y"
   args:
     creates: "{{ sysconfig.stkeeper.pgdata_dir }}/PG_VERSION"
     executable: "/bin/bash"

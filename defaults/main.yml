@@ -14,6 +14,8 @@ stolon_release_path: "{{ stolon_opt_path }}/{{ stolon_release }}"
 # Folder where helper scripts (demote.sh, movewal.sh, reinstate.sh, stolon_profile)
 # are deployed. Defaults to the `bin` folder in the home directory of stolon_user.
 stolon_script_path: "{{ getent_passwd[stolon_user][4] }}/bin"
+# Folder containing the stolon binaries (stolonctl, stolon-keeper, stolon-sentinel, stolon-proxy).
+stolon_bin_path: "/usr/bin"
 # User used (become_user) to create the stolon installation folders.
 stolon_binary_owner: root
 # State of the stolon packages (and local packages), e.g. `present` or `latest`.

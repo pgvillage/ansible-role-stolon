@@ -8,7 +8,7 @@ echo 'Sourcing stolonctl parameters (from /etc/sysconfig/stolon-stkeeper)'
 # Note that this command also sources $STKEEPER_DATA_DIR, renamed as $STOLONCTL_DATA_DIR
 eval $(sed -e '/#/d;s/^STKEEPER/export STOLONCTL/' /etc/sysconfig/stolon-stkeeper )
 echo 'Removing local keeper from etcd'
-/usr/bin/stolonctl removekeeper $(hostname | tr '-' '_')
+{{ stolon_bin_path }}/stolonctl removekeeper $(hostname | tr '-' '_')
 
 echo 'brute force remove local datadir'
 rm -rf "$STOLONCTL_DATA_DIR"/{postgres/*,dbstate,keeperstate,lock}
