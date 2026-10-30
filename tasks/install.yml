@@ -32,11 +32,15 @@
     label: "{{ item.path }}"
 
 - name: Deploy scripts
-  ansible.builtin.copy:
-    src: bin/
-    dest: "{{ stolon_script_path }}"
-    mode: preserve
+  ansible.builtin.template:
+    src: "bin/{{ item }}.j2"
+    dest: "{{ stolon_script_path }}/{{ item }}"
+    mode: "0755"
     owner: "{{ stolon_user }}"
+  loop:
+    - demote.sh
+    - movewal.sh
+    - reinstate.sh
 
 - name: Deploy templates
   ansible.builtin.template:
