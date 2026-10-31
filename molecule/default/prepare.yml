@@ -1,0 +1,73 @@
+---
+# stolon needs PostgreSQL and certificates (etcd comes with the role
+# dependency pgvillage.etcd, from the pgvillage repo): the keepers
+# connect to PostgreSQL with client certificates (pg_su_auth_method cert), and
+# the role creates its users with sslmode verify-full.
+- name: Prepare
+  hosts: all
+  vars:
+    pgvillage_repo: https://repo.pgvillage.org/yum/v0.3.8
+    pgdg_repo_rpm: >-
+      https://download.postgresql.org/pub/repos/yum/reporpms/EL-{{ ansible_facts.distribution_major_version
+      }}-{{ ansible_facts.architecture }}/pgdg-redhat-repo-latest.noarch.rpm
+    certdir: /var/lib/pgsql/certs
+    clientdir: /var/lib/pgsql/.postgresql
+  tasks:
+    - name: Add the pgvillage package repo, for the stolon and etcd packages
+      ansible.builtin.yum_repository:
+        name: pgvillage
+        description: pgvillage packages
+        baseurl: "{{ pgvillage_repo }}/el$releasever/$basearch/"
+        gpgcheck: true
+        gpgkey: https://repo.pgvillage.org/yum/pgvillage.asc
+
+    # The repo rpm is signed with the PGDG key, which it installs itself
+    - name: Add the PGDG repo, for PostgreSQL 17
+      ansible.builtin.dnf:
+        name: "{{ pgdg_repo_rpm }}"
+        disable_gpg_check: true
+        state: present
+
+    - name: Install EPEL, for python3-psycopg3 (installed by the role)
+      ansible.builtin.dnf:
+        name: epel-release
+        state: present
+
+    - name: Install PostgreSQL 17 and openssl
+      ansible.builtin.dnf:
+        name:
+          - postgresql17-server
+          - openssl
+        state: present
+
+    - name: Create the certificate folders
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: "0700"
+      loop:
+        - "{{ certdir }}"
+        - "{{ clientdir }}"
+
+    # One CA signs the server certificate (for the fqdn, as the role connects
+    # with verify-full) and the client certificate of postgres (cert auth).
+    # PostgreSQL trusts the CA for clients (root.crt), libpq for the server.
+    - name: Create a CA, a server and a client certificate
+      ansible.builtin.shell:
+        cmd: |
+          set -e
+          openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj /CN=molecule-ca -keyout ca.key -out ca.crt
+          openssl req -newkey rsa:2048 -nodes -subj "/CN={{ ansible_facts.fqdn }}" -keyout server.key -out server.csr
+          printf 'subjectAltName=DNS:%s,DNS:localhost,IP:%s,IP:127.0.0.1\n' \
+            "{{ ansible_facts.fqdn }}" "{{ ansible_facts.default_ipv4.address }}" > server.ext
+          openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 30 -extfile server.ext -out server.crt
+          cp ca.crt root.crt
+          openssl req -newkey rsa:2048 -nodes -subj /CN=postgres -keyout {{ clientdir }}/postgresql.key -out client.csr
+          openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 30 -out {{ clientdir }}/postgresql.crt
+          cp ca.crt {{ clientdir }}/root.crt
+          chown postgres: server.* root.crt {{ clientdir }}/*
+          chmod 0600 server.key {{ clientdir }}/postgresql.key
+        chdir: "{{ certdir }}"
+        creates: "{{ certdir }}/server.crt"

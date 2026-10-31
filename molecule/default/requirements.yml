@@ -1,0 +1,6 @@
+---
+roles:
+  - name: pgvillage.etcd
+collections:
+  - name: containers.podman
+  - name: community.postgresql

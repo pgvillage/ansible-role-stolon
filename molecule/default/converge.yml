@@ -1,0 +1,49 @@
+---
+- name: Converge
+  hosts: all
+  # Every container is a cluster of its own. The role creates the users and
+  # applies the cluster spec with run_once, so converge one host at a time.
+  serial: 1
+  vars:
+    stolon_multicluster: true
+    # The certificates are created in prepare.yml (as chainsmith does in PgVillage)
+    stolon_cert_managed: false
+    stolon_pg_certdir: /var/lib/pgsql/certs
+    stolon_cluster_hosts: "{{ ansible_facts.fqdn }}"
+    stolon_clusters:
+      cluster1:
+        sysconfig:
+          stsentinel:
+            cluster_name: cluster1
+          stkeeper:
+            cluster_name: cluster1
+            pg_port: 5433
+            data_dir: /var/lib/pgsql/cluster1
+            pgdata_dir: /var/lib/pgsql/cluster1/postgres
+            wal_dir: /pgwal/cluster1
+            pgwal_dir: /pgwal/cluster1
+          stproxy:
+            cluster_name: cluster1
+            port: 25433
+        custom_config:
+          pgParameters:
+            log_directory: /var/lib/pgsql/log/cluster1
+      cluster2:
+        sysconfig:
+          stsentinel:
+            cluster_name: cluster2
+          stkeeper:
+            cluster_name: cluster2
+            pg_port: 5434
+            data_dir: /var/lib/pgsql/cluster2
+            pgdata_dir: /var/lib/pgsql/cluster2/postgres
+            wal_dir: /pgwal/cluster2
+            pgwal_dir: /pgwal/cluster2
+          stproxy:
+            cluster_name: cluster2
+            port: 25434
+        custom_config:
+          pgParameters:
+            log_directory: /var/lib/pgsql/log/cluster2
+  roles:
+    - role: pgvillage.stolon

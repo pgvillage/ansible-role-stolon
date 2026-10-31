@@ -1,0 +1,55 @@
+---
+# Tests the role on Rocky Linux 9 and 10 in systemd containers: two stolon
+# clusters (multicluster) per container, each a single keeper with
+# PostgreSQL 17 from PGDG (see prepare.yml). The role depends on
+# pgvillage.etcd: every container is a single-member etcd cluster.
+# Every cluster has its own WAL filesystem (a tmpfs of 2 and 4 GiB), so
+# verify.yml can check that min_wal_size and max_wal_size are sized per cluster.
+dependency:
+  name: galaxy
+  options:
+    requirements-file: ${MOLECULE_SCENARIO_DIRECTORY}/requirements.yml
+driver:
+  name: podman
+platforms:
+  - name: stolon-el9
+    image: docker.io/geerlingguy/docker-rockylinux9-ansible:latest
+    pre_build_image: true
+    command: /usr/sbin/init
+    systemd: always
+    tmpfs:
+      /pgwal/cluster1: rw,size=2g
+      /pgwal/cluster2: rw,size=4g
+    groups:
+      - etcd_el9
+  - name: stolon-el10
+    image: docker.io/geerlingguy/docker-rockylinux10-ansible:latest
+    pre_build_image: true
+    command: /usr/sbin/init
+    systemd: always
+    tmpfs:
+      /pgwal/cluster1: rw,size=2g
+      /pgwal/cluster2: rw,size=4g
+    groups:
+      - etcd_el10
+provisioner:
+  name: ansible
+  inventory:
+    host_vars:
+      stolon-el9:
+        etcd_master_group_name: etcd_el9
+      stolon-el10:
+        etcd_master_group_name: etcd_el10
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - destroy
