@@ -134,6 +134,9 @@ Normally there is no need to change these; change the ratios instead.
 that cluster. With multiple clusters on a host, give every cluster its own WAL filesystem: clusters that share one
 each size their WAL from all of it.
 
+Make the `wal_dir` of a cluster a folder on its WAL filesystem, not the mount point itself: the keeper removes and
+recreates the WAL dir before it initializes a database, which fails on a mount point.
+
 | Variable | Calculation | Minimum |
 |----------|-------------|---------|
 | `stolon_share_buffers_mb` | available memory × `stolon_shared_buffers_ratio` (`shared_buffers`, MB) | 8 |

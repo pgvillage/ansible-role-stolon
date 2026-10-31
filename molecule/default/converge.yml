@@ -4,6 +4,9 @@
   # Every container is a cluster of its own. The role creates the users and
   # applies the cluster spec with run_once, so converge one host at a time.
   serial: 1
+  # The WAL dir of every cluster is a folder on its own WAL filesystem (a tmpfs
+  # mounted on /pgwal/<cluster>): the keeper removes and recreates the WAL dir
+  # before initdb, which fails on a mount point.
   vars:
     stolon_multicluster: true
     # Containers can't set kernel parameters
@@ -22,8 +25,8 @@
             pg_port: 5433
             data_dir: /var/lib/pgsql/cluster1
             pgdata_dir: /var/lib/pgsql/cluster1/postgres
-            wal_dir: /pgwal/cluster1
-            pgwal_dir: /pgwal/cluster1
+            wal_dir: /pgwal/cluster1/wal
+            pgwal_dir: /pgwal/cluster1/wal
           stproxy:
             cluster_name: cluster1
             port: 25433
@@ -39,8 +42,8 @@
             pg_port: 5434
             data_dir: /var/lib/pgsql/cluster2
             pgdata_dir: /var/lib/pgsql/cluster2/postgres
-            wal_dir: /pgwal/cluster2
-            pgwal_dir: /pgwal/cluster2
+            wal_dir: /pgwal/cluster2/wal
+            pgwal_dir: /pgwal/cluster2/wal
           stproxy:
             cluster_name: cluster2
             port: 25434

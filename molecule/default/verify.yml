@@ -6,8 +6,8 @@
     # Expected min_wal_size and max_wal_size (MB): 25% and 75% of the size of
     # the WAL filesystem of the cluster (molecule.yml), with minimums 80 and 1024
     clusters:
-      cluster1: {pg_port: 5433, proxy_port: 25433, wal_dir: /pgwal/cluster1, min_wal_size: 512, max_wal_size: 1536}
-      cluster2: {pg_port: 5434, proxy_port: 25434, wal_dir: /pgwal/cluster2, min_wal_size: 1024, max_wal_size: 3072}
+      cluster1: {pg_port: 5433, proxy_port: 25433, wal_mount: /pgwal/cluster1, min_wal_size: 512, max_wal_size: 1536}
+      cluster2: {pg_port: 5434, proxy_port: 25434, wal_mount: /pgwal/cluster2, min_wal_size: 1024, max_wal_size: 3072}
   tasks:
     - name: Check the stolon services are running and enabled
       ansible.builtin.systemd_service:
@@ -47,7 +47,7 @@
       loop_control:
         label: "{{ item.key }}"
       register: pg_wal_mount
-      failed_when: pg_wal_mount.stdout != item.value.wal_dir
+      failed_when: pg_wal_mount.stdout != item.value.wal_mount
       changed_when: false
 
     - name: Connect through the stolon proxy, verifying the server certificate

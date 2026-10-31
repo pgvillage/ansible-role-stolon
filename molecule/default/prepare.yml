@@ -40,6 +40,18 @@
           - openssl
         state: present
 
+    # Like a WAL disk mounted for postgres
+    - name: Give postgres the WAL filesystems
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: "0750"
+      loop:
+        - /pgwal/cluster1
+        - /pgwal/cluster2
+
     - name: Create the certificate folders
       ansible.builtin.file:
         path: "{{ item }}"
