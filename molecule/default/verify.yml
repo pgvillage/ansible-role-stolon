@@ -1,0 +1,88 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: true
+  vars:
+    # Expected min_wal_size and max_wal_size (MB): 25% and 75% of the size of
+    # the WAL filesystem of the cluster (molecule.yml), with minimums 80 and 1024
+    clusters:
+      cluster1: {pg_port: 5433, proxy_port: 25433, wal_mount: /pgwal/cluster1, min_wal_size: 512, max_wal_size: 1536}
+      cluster2: {pg_port: 5434, proxy_port: 25434, wal_mount: /pgwal/cluster2, min_wal_size: 1024, max_wal_size: 3072}
+  tasks:
+    - name: Check the stolon services are running and enabled
+      ansible.builtin.systemd_service:
+        name: stolon-{{ item[0] }}@{{ item[1] }}
+      loop: "{{ ['keeper', 'sentinel', 'proxy'] | product(clusters | list) | list }}"
+      register: service
+      failed_when: service.status.ActiveState != 'active' or service.status.UnitFileState != 'enabled'
+
+    # The keeper applies a new cluster spec within a few seconds
+    - name: Get the role, ssl and WAL settings of PostgreSQL
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - /usr/pgsql-17/bin/psql
+          - --host=/tmp
+          - --port={{ item.value.pg_port }}
+          - --no-align
+          - --tuples-only
+          - --command
+          - >-
+            select pg_is_in_recovery(), current_setting('ssl'),
+            (select setting from pg_settings where name = 'min_wal_size'),
+            (select setting from pg_settings where name = 'max_wal_size')
+      loop: "{{ clusters | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      register: settings
+      until: settings.stdout == 'f|on|' ~ item.value.min_wal_size ~ '|' ~ item.value.max_wal_size
+      retries: 30
+      delay: 2
+      changed_when: false
+
+    - name: Check pg_wal of every cluster is on its own WAL filesystem
+      ansible.builtin.command: findmnt --noheadings --output TARGET --target /var/lib/pgsql/{{ item.key }}/postgres/pg_wal/
+      loop: "{{ clusters | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      register: pg_wal_mount
+      failed_when: pg_wal_mount.stdout != item.value.wal_mount
+      changed_when: false
+
+    - name: Connect through the stolon proxy, verifying the server certificate
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - /usr/pgsql-17/bin/psql
+          - "host={{ ansible_facts.fqdn }} port={{ item.value.proxy_port }} dbname=postgres sslmode=verify-full"
+          - --no-align
+          - --tuples-only
+          - --command
+          - select pg_is_in_recovery()
+      loop: "{{ clusters | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      register: proxy
+      failed_when: proxy.stdout != 'f'
+      changed_when: false
+
+    - name: Check the role created the users, as superusers
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - /usr/pgsql-17/bin/psql
+          - --host=/tmp
+          - --port={{ item.value.pg_port }}
+          - --no-align
+          - --tuples-only
+          - --command
+          - select string_agg(rolname, ',' order by rolname) from pg_roles where rolsuper and rolname in ('nrpe', 'pgquartz', 'pgroute66')
+      loop: "{{ clusters | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      register: users
+      failed_when: users.stdout != 'nrpe,pgquartz,pgroute66'
+      changed_when: false

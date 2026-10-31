@@ -1,0 +1,76 @@
+---
+- name: Converge
+  hosts: all
+  # Every container is a cluster of its own. The role creates the users and
+  # applies the cluster spec with run_once, so converge one host at a time.
+  serial: 1
+  # The WAL dir of every cluster is a folder on its own WAL filesystem (a tmpfs
+  # mounted on /pgwal/<cluster>): the keeper removes and recreates the WAL dir
+  # before initdb, which fails on a mount point.
+  vars:
+    stolon_multicluster: true
+    # Containers can't set kernel parameters
+    stolon_sysctl_apply: false
+    # The certificates are created in prepare.yml (as chainsmith does in PgVillage)
+    stolon_cert_managed: false
+    stolon_pg_certdir: /var/lib/pgsql/certs
+    stolon_cluster_hosts: "{{ ansible_facts.fqdn }}"
+    # As in PgVillage (inventories/standard): with defaultSUReplAccessMode
+    # strict, stolon only lets the other keepers in, and each cluster here has one
+    stolon_pg_hba:
+      - local all all ident
+      - hostssl all all samenet cert
+    stolon_clusters:
+      cluster1:
+        sysconfig:
+          stsentinel:
+            cluster_name: cluster1
+          stkeeper:
+            cluster_name: cluster1
+            pg_port: 5433
+            data_dir: /var/lib/pgsql/cluster1
+            pgdata_dir: /var/lib/pgsql/cluster1/postgres
+            wal_dir: /pgwal/cluster1/wal
+            pgwal_dir: /pgwal/cluster1/wal
+          stproxy:
+            cluster_name: cluster1
+            port: 25433
+        custom_config:
+          pgParameters:
+            log_directory: /var/lib/pgsql/log/cluster1
+      cluster2:
+        sysconfig:
+          stsentinel:
+            cluster_name: cluster2
+          stkeeper:
+            cluster_name: cluster2
+            pg_port: 5434
+            data_dir: /var/lib/pgsql/cluster2
+            pgdata_dir: /var/lib/pgsql/cluster2/postgres
+            wal_dir: /pgwal/cluster2/wal
+            pgwal_dir: /pgwal/cluster2/wal
+          stproxy:
+            cluster_name: cluster2
+            port: 25434
+        custom_config:
+          pgParameters:
+            log_directory: /var/lib/pgsql/log/cluster2
+  tasks:
+    - name: Converge, and show the stolon and etcd logs when it fails
+      block:
+        - name: Run the role
+          ansible.builtin.include_role:
+            name: pgvillage.stolon
+      rescue:
+        - name: Get the logs of stolon and etcd
+          ansible.builtin.command: journalctl --no-pager --lines 200 --unit 'stolon-*' --unit etcd
+          register: logs
+          changed_when: false
+
+        - name: Show the logs of stolon and etcd
+          ansible.builtin.debug:
+            var: logs.stdout_lines
+
+        - name: Fail, as the role failed
+          ansible.builtin.fail:
+            msg: "{{ ansible_failed_result.msg | default('The role failed') }}"

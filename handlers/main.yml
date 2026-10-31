@@ -53,3 +53,4 @@
 - name: Apply sysctl changes
   ansible.builtin.command: "sysctl --system"
   changed_when: false
+  when: stolon_sysctl_apply
