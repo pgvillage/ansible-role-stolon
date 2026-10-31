@@ -146,8 +146,8 @@ stolon_config_dir: "/var/lib/pgsql/{{ stolon_pg_version }}/config"
 stolon_custom_config_file: "{{ stolon_config_dir }}/stolon_custom_config.yml"
 # Folder of stolon_custom_config_file. Used by the handler that applies the cluster spec.
 stolon_custom_config_dir: "{{ stolon_custom_config_file | dirname }}"
-# PostgreSQL WAL directory (STKEEPER_WAL_DIR / STKEEPER_PGWAL_DIR).
-# The free space on this filesystem is used to calculate min_wal_size and max_wal_size.
+# PostgreSQL WAL directory (STKEEPER_WAL_DIR / STKEEPER_PGWAL_DIR) (single cluster mode).
+# min_wal_size and max_wal_size are calculated per cluster from the size of the filesystem of its wal_dir.
 stolon_wal_dir: "{{ stolon_pg_datadir }}/pg_wal"
 # Address the stolon proxy listens on (STPROXY_LISTEN_ADDRESS).
 stolon_proxy_listen_address: "{{ ansible_facts.default_ipv4.address }}"
@@ -174,9 +174,9 @@ stolon_max_connections: 100
 stolon_shared_buffers_ratio: 0.25
 # effective_cache_size as fraction of available memory
 stolon_eff_cache_ratio: 0.75
-# min_wal_size as fraction of free space on the WAL filesystem
+# min_wal_size as fraction of the size of the WAL filesystem of the cluster
 stolon_min_wal_size_ratio: 0.25
-# max_wal_size as fraction of free space on the WAL filesystem
+# max_wal_size as fraction of the size of the WAL filesystem of the cluster
 stolon_max_wal_size_ratio: 0.75
 # max_worker_processes per vCPU
 stolon_workers_ratio: 4
@@ -190,12 +190,19 @@ stolon_gather_ratio: 1
 stolon_share_buffers_mb: "{{ [(stolon_available_memory_mb | int * stolon_shared_buffers_ratio) | int, 8] | max }}"
 # effective_cache_size in MB (minimum 1)
 stolon_effective_cache_size_mb: "{{ [(stolon_available_memory_mb | int * stolon_eff_cache_ratio) | int, 1] | max }}"
-# Free space (in bytes) on the filesystem of stolon_wal_dir, as detected by the role
+# Size (in bytes) of the filesystem of the wal_dir of the cluster being configured, as detected by the role.
+# Every cluster should have its own WAL filesystem: clusters that share one each size their WAL from all of it.
 stolon_wal_dir_size: "{{ stolon_get_wal_dir_size.stdout_lines[0] }}"
 # min_wal_size in MB (minimum 80)
 stolon_min_wal_size_mb: "{{ [(stolon_wal_dir_size | int * stolon_min_wal_size_ratio / 1048576) | int, 80] | max }}"
 # max_wal_size in MB (minimum 1024)
 stolon_max_wal_size_mb: "{{ [(stolon_wal_dir_size | int * stolon_max_wal_size_ratio / 1048576) | int, 1024] | max }}"
+# min_wal_size and max_wal_size of the cluster being configured. Merged over the cluster spec of every cluster.
+# Values in stolon_extra_pg_parameters win, and so do values in custom_config.pgParameters of the cluster.
+stolon_wal_size_parameters: >-
+  {{ {'min_wal_size': stolon_min_wal_size_mb ~ 'MB', 'max_wal_size': stolon_max_wal_size_mb ~ 'MB'}
+     | combine(stolon_extra_pg_parameters | dict2items | selectattr('key', 'in', ['min_wal_size', 'max_wal_size'])
+               | items2dict) }}
 # max_worker_processes (minimum 8)
 stolon_max_worker_processes: "{{ [ansible_facts.processor_vcpus | int * stolon_workers_ratio | int, 8] | max }}"
 # max_parallel_workers (minimum 8)

@@ -32,6 +32,16 @@
     - "{{ sysconfig.stkeeper.wal_dir }}"
     - "{{ custom_config.pgParameters.log_directory }}"
 
+- name: Get size of the WAL filesystem in bytes
+  ansible.builtin.shell:
+    cmd: "set -o pipefail && df -B1 . | awk '{if(NR==2){print $2}}'"
+  args:
+    chdir: "{{ sysconfig.stkeeper.wal_dir }}"
+  vars:
+    sysconfig: "{{ stolon_default_sysconfig | combine((cluster.value.sysconfig | default({})), recursive=True) }}"
+  register: stolon_get_wal_dir_size
+  changed_when: false
+
 - name: Systemd config folder
   become: true
   become_user: root
@@ -74,7 +84,7 @@
     mode: "0644"
   vars:
     custom_config_file: "{{ stolon_config_dir }}/stolon_custom_config{% if stolon_multicluster %}-{{ cluster.key }}{% endif %}.yml"
-    custom_config: "{{ cluster.value.custom_config | default({}) }}"
+    custom_config: "{{ {'pgParameters': stolon_wal_size_parameters} | combine((cluster.value.custom_config | default({})), recursive=True) }}"
   notify:
     - Update cluster spec
 

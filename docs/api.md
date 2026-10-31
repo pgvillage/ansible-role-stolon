@@ -77,7 +77,7 @@ Default `_stolon_package_names`:
 | `stolon_config_dir` | `/var/lib/pgsql/{{ stolon_pg_version }}/config` | Folder for the stolon custom config (cluster spec) files. |
 | `stolon_custom_config_file` | `{{ stolon_config_dir }}/stolon_custom_config.yml` | Path of the stolon custom config (cluster spec) file. |
 | `stolon_custom_config_dir` | `{{ stolon_custom_config_file \| dirname }}` | Folder of `stolon_custom_config_file`. Used by the handler that applies the cluster spec. |
-| `stolon_wal_dir` | `{{ stolon_pg_datadir }}/pg_wal` | PostgreSQL WAL directory (`STKEEPER_WAL_DIR` / `STKEEPER_PGWAL_DIR`). The free space on this filesystem is used to calculate `min_wal_size` and `max_wal_size`. |
+| `stolon_wal_dir` | `{{ stolon_pg_datadir }}/pg_wal` | PostgreSQL WAL directory (`STKEEPER_WAL_DIR` / `STKEEPER_PGWAL_DIR`) in single cluster mode. |
 | `stolon_proxy_listen_address` | `{{ ansible_facts.default_ipv4.address }}` | Address the stolon proxy listens on (`STPROXY_LISTEN_ADDRESS`). |
 | `stolon_uid` | `inventory_hostname_short`, `-` replaced by `_`, lowercased | Unique id of the keeper (`STKEEPER_UID`). Must be unique within the cluster. |
 
@@ -106,7 +106,7 @@ stolon_clusters:
 ## Autoconfig
 
 The role derives PostgreSQL resource parameters from the resources of the host
-(memory, vCPUs and free space on the WAL filesystem). Available memory is
+(memory, vCPUs and the size of the WAL filesystem). Available memory is
 `ansible_facts.memtotal_mb - stolon_reserved_memory_mb` (`stolon_available_memory_mb` in `vars/main.yml`).
 
 ### Tunables
@@ -118,8 +118,8 @@ The role derives PostgreSQL resource parameters from the resources of the host
 | `stolon_max_connections` | `100` | PostgreSQL `max_connections`. Also used to calculate `work_mem`. |
 | `stolon_shared_buffers_ratio` | `0.25` | `shared_buffers` as fraction of available memory. |
 | `stolon_eff_cache_ratio` | `0.75` | `effective_cache_size` as fraction of available memory. |
-| `stolon_min_wal_size_ratio` | `0.25` | `min_wal_size` as fraction of free space on the WAL filesystem. |
-| `stolon_max_wal_size_ratio` | `0.75` | `max_wal_size` as fraction of free space on the WAL filesystem. |
+| `stolon_min_wal_size_ratio` | `0.25` | `min_wal_size` as fraction of the size of the WAL filesystem of the cluster. |
+| `stolon_max_wal_size_ratio` | `0.75` | `max_wal_size` as fraction of the size of the WAL filesystem of the cluster. |
 | `stolon_workers_ratio` | `4` | `max_worker_processes` per vCPU. |
 | `stolon_parallel_ratio` | `4` | `max_parallel_workers` per vCPU. |
 | `stolon_gather_ratio` | `1` | `max_parallel_workers_per_gather` per vCPU. |
@@ -129,13 +129,18 @@ The role derives PostgreSQL resource parameters from the resources of the host
 
 Normally there is no need to change these; change the ratios instead.
 
+`min_wal_size` and `max_wal_size` are calculated per cluster, from the size of the filesystem of the `wal_dir` of
+that cluster. With multiple clusters on a host, give every cluster its own WAL filesystem: clusters that share one
+each size their WAL from all of it.
+
 | Variable | Calculation | Minimum |
 |----------|-------------|---------|
 | `stolon_share_buffers_mb` | available memory × `stolon_shared_buffers_ratio` (`shared_buffers`, MB) | 8 |
 | `stolon_effective_cache_size_mb` | available memory × `stolon_eff_cache_ratio` (`effective_cache_size`, MB) | 1 |
-| `stolon_wal_dir_size` | free space (bytes) on the filesystem of `stolon_wal_dir`, as detected by the role | |
+| `stolon_wal_dir_size` | size (bytes) of the filesystem of the `wal_dir` of the cluster, as detected by the role | |
 | `stolon_min_wal_size_mb` | `stolon_wal_dir_size` × `stolon_min_wal_size_ratio` (`min_wal_size`, MB) | 80 |
 | `stolon_max_wal_size_mb` | `stolon_wal_dir_size` × `stolon_max_wal_size_ratio` (`max_wal_size`, MB) | 1024 |
+| `stolon_wal_size_parameters` | `min_wal_size` and `max_wal_size` of the cluster, merged over its cluster spec; values in `stolon_extra_pg_parameters` and in `custom_config.pgParameters` of the cluster win | |
 | `stolon_max_worker_processes` | vCPUs × `stolon_workers_ratio` | 8 |
 | `stolon_max_parallel_workers` | vCPUs × `stolon_parallel_ratio` | 8 |
 | `stolon_max_parallel_workers_per_gather` | vCPUs × `stolon_gather_ratio` | 2 |

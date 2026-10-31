@@ -36,14 +36,6 @@
 - name: Install stolon
   ansible.builtin.include_tasks: install.yml
 
-- name: Get size of wal dir in bytes
-  ansible.builtin.shell:
-    cmd: "set -o pipefail && df -B1 . | awk '{if(NR==2){print $4}}'"
-  args:
-    chdir: "{{ stolon_wal_dir }}"
-  register: stolon_get_wal_dir_size
-  changed_when: false
-
 - name: Configure stolon
   ansible.builtin.include_tasks: configure.yml
 
