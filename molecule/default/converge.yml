@@ -6,6 +6,8 @@
   serial: 1
   vars:
     stolon_multicluster: true
+    # Containers can't set kernel parameters
+    stolon_sysctl_apply: false
     # The certificates are created in prepare.yml (as chainsmith does in PgVillage)
     stolon_cert_managed: false
     stolon_pg_certdir: /var/lib/pgsql/certs

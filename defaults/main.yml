@@ -56,6 +56,8 @@ stolon_local_package_names: []
 # Contents of /etc/sysctl.d/postgresql.conf. With this you can apply sysctl config as required.
 stolon_sysctl: |
   vm.swappiness = 10
+# Apply the sysctl config right away (sysctl --system). Set to false where kernel parameters can't be set (containers).
+stolon_sysctl_apply: true
 
 # Stolon components for which systemd services are deployed and started.
 # Each item `<x>` maps to the template `stolon-<x>.service.j2` (or `stolon-<x>@.service.j2` in multicluster mode).

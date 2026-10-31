@@ -32,6 +32,7 @@ playbook or extra vars.
 | `_stolon_package_names` | see below | Packages to install per package manager. The `default` key is used when the package manager is not listed. |
 | `stolon_local_package_names` | `[]` | List of local package files (from the role / playbook files path) that are copied to `/tmp` on the target and installed from there. |
 | `stolon_sysctl` | `vm.swappiness = 10` | Contents of `/etc/sysctl.d/postgresql.conf`. |
+| `stolon_sysctl_apply` | `true` | Apply the sysctl config right away (`sysctl --system`). Set to `false` where kernel parameters can't be set (containers). |
 | `stolon_services` | `[keeper, proxy, sentinel]` | Stolon components for which systemd services are deployed and started. Each item `<x>` maps to template `stolon-<x>.service.j2` (or `stolon-<x>@.service.j2` in multicluster mode). |
 
 Default `_stolon_package_names`:

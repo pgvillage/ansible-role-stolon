@@ -33,13 +33,11 @@
         name: epel-release
         state: present
 
-    # procps-ng: sysctl, for the role's sysctl handler (not in the EL10 image)
-    - name: Install PostgreSQL 17, openssl and procps-ng
+    - name: Install PostgreSQL 17 and openssl
       ansible.builtin.dnf:
         name:
           - postgresql17-server
           - openssl
-          - procps-ng
         state: present
 
     - name: Create the certificate folders
