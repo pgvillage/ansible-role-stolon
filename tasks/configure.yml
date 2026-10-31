@@ -1,4 +1,13 @@
 ---
+# EL10 has no /etc/sysctl.d by default (packages use /usr/lib/sysctl.d)
+- name: Create sysctl folder
+  ansible.builtin.file:
+    path: /etc/sysctl.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Swapiness instellen
   ansible.builtin.copy:
     content: "{{ stolon_sysctl }}"
