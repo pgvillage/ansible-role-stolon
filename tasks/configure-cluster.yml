@@ -17,20 +17,26 @@
     sysconfig: "{{ stolon_default_sysconfig | combine((cluster.value.sysconfig | default({})), recursive=True) }}"
   notify: "Restart stolon-{{ settings.key }}"
 
+# The data and WAL dirs get 0700, as initdb sets them: with 0750 every run changed them back
 - name: Create postgres folders
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ item.path }}"
     state: directory
     owner: "{{ stolon_user }}"
     group: "{{ stolon_group }}"
-    mode: "0750"
+    mode: "{{ item.mode }}"
   vars:
     sysconfig: "{{ stolon_default_sysconfig | combine((cluster.value.sysconfig | default({})), recursive=True) }}"
     custom_config: "{{ stolon_default_custom_config | combine((cluster.value.custom_config | default({})), recursive=True) }}"
   loop:
-    - "{{ sysconfig.stkeeper.pgdata_dir }}"
-    - "{{ sysconfig.stkeeper.wal_dir }}"
-    - "{{ custom_config.pgParameters.log_directory }}"
+    - path: "{{ sysconfig.stkeeper.pgdata_dir }}"
+      mode: "0700"
+    - path: "{{ sysconfig.stkeeper.wal_dir }}"
+      mode: "0700"
+    - path: "{{ custom_config.pgParameters.log_directory }}"
+      mode: "0750"
+  loop_control:
+    label: "{{ item.path }}"
 
 - name: Get size of the WAL filesystem in bytes
   ansible.builtin.shell:
