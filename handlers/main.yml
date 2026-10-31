@@ -50,6 +50,8 @@
   run_once: true
   changed_when: false
 
+# Containers can't set kernel parameters, so Molecule skips this
 - name: Apply sysctl changes
   ansible.builtin.command: "sysctl --system"
   changed_when: false
+  tags: molecule-notest
