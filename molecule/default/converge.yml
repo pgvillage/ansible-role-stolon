@@ -47,5 +47,22 @@
         custom_config:
           pgParameters:
             log_directory: /var/lib/pgsql/log/cluster2
-  roles:
-    - role: pgvillage.stolon
+  tasks:
+    - name: Converge, and show the stolon and etcd logs when it fails
+      block:
+        - name: Run the role
+          ansible.builtin.include_role:
+            name: pgvillage.stolon
+      rescue:
+        - name: Get the logs of stolon and etcd
+          ansible.builtin.command: journalctl --no-pager --lines 200 --unit 'stolon-*' --unit etcd
+          register: logs
+          changed_when: false
+
+        - name: Show the logs of stolon and etcd
+          ansible.builtin.debug:
+            var: logs.stdout_lines
+
+        - name: Fail, as the role failed
+          ansible.builtin.fail:
+            msg: "{{ ansible_failed_result.msg | default('The role failed') }}"
