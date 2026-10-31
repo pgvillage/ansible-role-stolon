@@ -15,6 +15,11 @@
     stolon_cert_managed: false
     stolon_pg_certdir: /var/lib/pgsql/certs
     stolon_cluster_hosts: "{{ ansible_facts.fqdn }}"
+    # As in PgVillage (inventories/standard): with defaultSUReplAccessMode
+    # strict, stolon only lets the other keepers in, and each cluster here has one
+    stolon_pg_hba:
+      - local all all ident
+      - hostssl all all samenet cert
     stolon_clusters:
       cluster1:
         sysconfig:
