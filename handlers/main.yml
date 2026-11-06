@@ -1,7 +1,72 @@
 ---
 # handlers file for stolon
+#
+# Tasks notify `Restart stolon-stkeeper`, `Restart stolon-stsentinel` and `Restart stolon-stproxy`
+# (package, unit file, sysconfig or cgroups changed). The handlers below listen to them and run in this order.
 
+# Flag the notified hosts, and store what the rolling restart needs to know about them.
+# The facts are set on the host itself, as the rolling restart runs once and delegates to it.
+- name: Plan the stolon-stkeeper restart
+  listen: Restart stolon-stkeeper
+  ansible.builtin.set_fact:
+    stolon_restart_pending: "{{ stolon_restart_pending | default([]) | union(['keeper']) }}"
+    stolon_restart_plan: "{{ _stolon_restart_plan }}"
+
+- name: Plan the stolon-stsentinel restart
+  listen: Restart stolon-stsentinel
+  ansible.builtin.set_fact:
+    stolon_restart_pending: "{{ stolon_restart_pending | default([]) | union(['sentinel']) }}"
+    stolon_restart_plan: "{{ _stolon_restart_plan }}"
+
+- name: Plan the stolon-stproxy restart
+  listen: Restart stolon-stproxy
+  ansible.builtin.set_fact:
+    stolon_restart_pending: "{{ stolon_restart_pending | default([]) | union(['proxy']) }}"
+    stolon_restart_plan: "{{ _stolon_restart_plan }}"
+
+# Rolling restart of the keepers, per cluster: first the standbys, one host at a time, then the primary,
+# after moving the primary to another keeper (see tasks/restart-keeper.yml)
+- name: Restart stolon-stkeeper one host at a time
+  listen: Restart stolon-stkeeper
+  when: stolon_rolling_restart | bool
+  run_once: true
+  ansible.builtin.include_tasks: restart-keeper.yml
+  loop: "{{ stolon_clusters.keys() | list }}"
+  loop_control:
+    loop_var: stolon_restart_cluster
+
+# Sentinels and proxies don't stop PostgreSQL: restart them one host at a time (see tasks/restart-service.yml)
+- name: Restart stolon-stsentinel one host at a time
+  listen: Restart stolon-stsentinel
+  when: stolon_rolling_restart | bool
+  run_once: true
+  ansible.builtin.include_tasks: restart-service.yml
+  loop: "{{ _stolon_restart_hosts }}"
+  loop_control:
+    loop_var: stolon_restart_host
+  vars:
+    stolon_restart_service: sentinel
+    _stolon_restart_hosts: "{{ ansible_play_batch | map('extract', hostvars) | selectattr('stolon_restart_pending', 'defined')
+                               | selectattr('stolon_restart_pending', 'contains', 'sentinel') | map(attribute='inventory_hostname') | list }}"
+
+- name: Restart stolon-stproxy one host at a time
+  listen: Restart stolon-stproxy
+  when: stolon_rolling_restart | bool
+  run_once: true
+  ansible.builtin.include_tasks: restart-service.yml
+  loop: "{{ _stolon_restart_hosts }}"
+  loop_control:
+    loop_var: stolon_restart_host
+  vars:
+    stolon_restart_service: proxy
+    _stolon_restart_hosts: "{{ ansible_play_batch | map('extract', hostvars) | selectattr('stolon_restart_pending', 'defined')
+                               | selectattr('stolon_restart_pending', 'contains', 'proxy') | map(attribute='inventory_hostname') | list }}"
+
+# Without stolon_rolling_restart: restart the services on all notified hosts (one task at a time per host),
+# without waiting for the cluster to recover in between
 - name: Restart stolon-stkeeper
+  listen: Restart stolon-stkeeper
+  when: not stolon_rolling_restart | bool
   become: true
   ansible.builtin.systemd:
     name: "stolon-keeper{% if stolon_multicluster %}@{{ item }}{% endif %}.service"
@@ -14,6 +79,8 @@
   throttle: 1
 
 - name: Restart stolon-stsentinel
+  listen: Restart stolon-stsentinel
+  when: not stolon_rolling_restart | bool
   become: true
   ansible.builtin.systemd:
     name: "stolon-sentinel{% if stolon_multicluster %}@{{ item }}{% endif %}.service"
@@ -26,6 +93,8 @@
   throttle: 1
 
 - name: Restart stolon-stproxy
+  listen: Restart stolon-stproxy
+  when: not stolon_rolling_restart | bool
   become: true
   ansible.builtin.systemd:
     name: "stolon-proxy{% if stolon_multicluster %}@{{ item }}{% endif %}.service"
@@ -36,6 +105,16 @@
   loop_control:
     label: "cluster: {{ item }}"
   throttle: 1
+
+# Everything is restarted: clear the flags, so a next run of the role (or a next batch with serial)
+# doesn't restart these hosts again
+- name: Clear the stolon restart plan
+  listen:
+    - Restart stolon-stkeeper
+    - Restart stolon-stsentinel
+    - Restart stolon-stproxy
+  ansible.builtin.set_fact:
+    stolon_restart_pending: []
 
 - name: Update cluster spec
   become: true

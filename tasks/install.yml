@@ -61,12 +61,18 @@
     mode: "0600"
   loop: "{{ stolon_local_package_names }}"
 
+# A new stolon package (e.g. 0.19.7 -> 0.19.8) only takes effect when the services restart.
+# The handlers restart them one host at a time (see handlers/main.yml).
 - name: Install local stolon packages when defined
   become: true
   ansible.builtin.package:
     name: "/tmp/{{ item }}"
     state: "{{ stolon_package_name_state }}"
   loop: "{{ stolon_local_package_names }}"
+  notify:
+    - Restart stolon-stkeeper
+    - Restart stolon-stsentinel
+    - Restart stolon-stproxy
 
 - name: Install stolon packages when defined
   become: true
@@ -74,6 +80,10 @@
     name: "{{ item }}"
     state: "{{ stolon_package_name_state }}"
   loop: "{{ stolon_package_names }}"
+  notify:
+    - Restart stolon-stkeeper
+    - Restart stolon-stsentinel
+    - Restart stolon-stproxy
 
 - name: Enable profiles
   ansible.builtin.lineinfile:

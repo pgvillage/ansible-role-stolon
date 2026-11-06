@@ -10,3 +10,29 @@ stolon_autoconfig_default:
   max_parallel_workers: "{{ stolon_max_parallel_workers | string }}"
   max_parallel_workers_per_gather: "{{ stolon_max_parallel_workers_per_gather | string }}"
   max_connections: "{{ stolon_max_connections | string }}"
+
+# What the rolling restart (see handlers/main.yml) needs to know about a host, per cluster.
+# The handlers set it as a fact (stolon_restart_plan) on every notified host, so the
+# handler that runs once can read it for all hosts through hostvars.
+_stolon_restart_plan: >-
+  {%- set ns = namespace(clusters={}) -%}
+  {%- for name, cluster in stolon_clusters.items() -%}
+  {%-   set sysconfig = stolon_default_sysconfig | combine((cluster.sysconfig | default({})), recursive=True) -%}
+  {%-   set ns.clusters = ns.clusters | combine({name: {
+          'keeper_uid': sysconfig.stkeeper.uid,
+          'pg_port': sysconfig.stkeeper.pg_port,
+          'proxy_address': sysconfig.stproxy['listen-address'] | default('127.0.0.1'),
+          'proxy_port': sysconfig.stproxy.port | default(''),
+        }}) -%}
+  {%- endfor -%}
+  {{ {'pg_bin_path': stolon_pg_bin_path, 'clusters': ns.clusters} }}
+
+# stolonctl for the cluster in stolon_restart_cluster, with the STOLONCTL_* environment taken from the
+# sentinel sysconfig (STSENTINEL_* renamed to STOLONCTL_*), as in demote.sh and stolon_profile
+_stolon_restart_stolonctl: >-
+  eval "$(sed -e '/^#/d;s/^STSENTINEL_/export STOLONCTL_/'
+  /etc/sysconfig/stolon-stsentinel{% if stolon_multicluster %}-{{ stolon_restart_cluster }}{% endif %})" &&
+  {{ stolon_bin_path }}/stolonctl
+
+# Number of health checks during a rolling restart (stolon_rolling_restart_timeout / stolon_rolling_restart_delay)
+_stolon_restart_retries: "{{ (stolon_rolling_restart_timeout | int / stolon_rolling_restart_delay | int) | round(0, 'ceil') | int }}"

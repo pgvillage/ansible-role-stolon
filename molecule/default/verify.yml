@@ -1,4 +1,41 @@
 ---
+# First the restart handlers: change the sysconfig of every stolon component of
+# cluster1 behind the role's back, converge again (the role puts them back and
+# notifies the restart handlers), and check every service was restarted. Then
+# check stolon and PostgreSQL work, after that restart.
+- name: Prepare a restart of the stolon services
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Get the main PIDs of the stolon services
+      ansible.builtin.systemd_service:
+        name: stolon-{{ item[0] }}@{{ item[1] }}
+      loop: "{{ ['keeper', 'sentinel', 'proxy'] | product(['cluster1', 'cluster2']) | list }}"
+      register: services_before
+
+    - name: Change the sysconfig of the stolon components of cluster1
+      ansible.builtin.lineinfile:
+        path: /etc/sysconfig/stolon-{{ item }}-cluster1
+        line: "# changed by molecule verify"
+      loop: [stkeeper, stsentinel, stproxy]
+
+- name: Converge again, which restarts the stolon services
+  ansible.builtin.import_playbook: converge.yml
+
+- name: Check the stolon services were restarted
+  hosts: all
+  gather_facts: false
+  tasks:
+    # A handler restarts a service for all clusters
+    - name: Check every stolon service has a new main PID
+      ansible.builtin.systemd_service:
+        name: stolon-{{ item.item[0] }}@{{ item.item[1] }}
+      loop: "{{ services_before.results }}"
+      loop_control:
+        label: "{{ item.item | join('@') }}"
+      register: service_after
+      failed_when: service_after.status.MainPID == item.status.MainPID
+
 - name: Verify
   hosts: all
   gather_facts: true

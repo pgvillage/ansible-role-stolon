@@ -7,6 +7,7 @@ playbook or extra vars.
 ## Contents
 
 - [Installation](#installation)
+- [Restarts](#restarts)
 - [PostgreSQL](#postgresql)
 - [Cluster(s)](#clusters)
 - [Autoconfig](#autoconfig)
@@ -43,6 +44,32 @@ Default `_stolon_package_names`:
 | `dnf` | `stolon`, `python3-psycopg3` |
 | `apt` | `stolon`, `python3-psycopg2` |
 | `zypper` | `stolon`, `python313-psycopg2` |
+
+## Restarts
+
+The role restarts the stolon services when their package (e.g. stolon 0.19.7 -> 0.19.8), systemd unit
+(e.g. a new `stolon_bin_path`), sysconfig or cgroups changed. By default it restarts them one host at a time:
+
+- Keepers, per cluster: first the standbys, one host at a time. After every restart the role waits until
+  PostgreSQL is back in recovery and streams from the primary (`pg_stat_wal_receiver`), and stolon
+  (`stolonctl status`) reports the keeper healthy. Then the primary: the role moves it to another keeper with
+  `stolonctl failkeeper` (the sentinel considers the keeper failed for one check, elects a new primary and the old
+  primary becomes a standby), waits until the new primary is healthy, restarts the old primary's keeper and waits
+  until it streams as a standby. A primary without a healthy standby (e.g. a single keeper) is restarted in place.
+- A new cluster (no primary yet, e.g. right after `stolonctl init`) restarts all its keepers at once.
+- A keeper that wasn't running (e.g. on a new host) is started without waiting for it.
+- Sentinels and proxies (they don't stop PostgreSQL): one host at a time, checking that they keep running for
+  `stolon_rolling_restart_settle` seconds, and that the proxies listen.
+
+The rolling restart stops (the play fails) when a host doesn't recover within `stolon_rolling_restart_timeout`.
+Only the hosts that were notified are restarted. With `serial`, every batch restarts its own hosts.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `stolon_rolling_restart` | `true` | Restart the services one host at a time, as described above. Set to `false` to restart the services on all notified hosts without waiting (the old behaviour). |
+| `stolon_rolling_restart_timeout` | `600` | Seconds to wait for a restarted keeper to be healthy again (and streaming, for a standby), for a new primary after moving the primary away, and for a restarted proxy to listen. Allow for a `pg_rewind` of the old primary. |
+| `stolon_rolling_restart_delay` | `5` | Seconds between health checks during a rolling restart. |
+| `stolon_rolling_restart_settle` | `5` | Seconds a restarted sentinel or proxy must keep running before the next host is restarted. |
 
 ## PostgreSQL
 
