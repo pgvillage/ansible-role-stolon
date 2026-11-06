@@ -1,0 +1,58 @@
+---
+# Rolling restart of the keepers of one cluster (stolon_restart_cluster), on the hosts that were notified.
+# Included (run once) by the `Restart stolon-stkeeper one host at a time` handler, once per cluster.
+#
+# When the cluster has a primary, the hosts are restarted one at a time: first the standbys, then the
+# primary (see restart-keeper-host.yml). A new cluster (no primary yet, e.g. right after `stolonctl init`)
+# has no clients to protect: then all its keepers are restarted at once.
+
+- name: Get the status of stolon cluster {{ stolon_restart_cluster }}
+  become: true
+  become_user: "{{ stolon_user }}"
+  ansible.builtin.shell:
+    cmd: "{{ _stolon_restart_stolonctl }} status --format json"
+    executable: /bin/bash
+  environment:
+    STOLONCTL_CLUSTER_NAME: "{{ stolon_restart_cluster }}"
+    STOLONCTL_STORE_BACKEND: "{{ stolon_store_backend }}"
+  register: stolon_restart_status
+  changed_when: false
+  failed_when: false
+
+# stolonctl prints an empty object when it can't read the cluster data
+- name: Order the keepers to restart, the primary last, for stolon cluster {{ stolon_restart_cluster }}
+  ansible.builtin.set_fact:
+    stolon_restart_master_uid: "{{ _master_uid }}"
+    stolon_restart_order: >-
+      {%- set ns = namespace(standbys=[], primaries=[]) -%}
+      {%- for host in _hosts -%}
+      {%-   if hostvars[host].stolon_restart_plan.clusters[stolon_restart_cluster].keeper_uid == _master_uid -%}
+      {%-     set ns.primaries = ns.primaries + [host] -%}
+      {%-   else -%}
+      {%-     set ns.standbys = ns.standbys + [host] -%}
+      {%-   endif -%}
+      {%- endfor -%}
+      {{ ns.standbys + ns.primaries }}
+  vars:
+    _hosts: "{{ ansible_play_batch | map('extract', hostvars) | selectattr('stolon_restart_pending', 'defined')
+                | selectattr('stolon_restart_pending', 'contains', 'keeper') | map(attribute='inventory_hostname') | list }}"
+    _status: "{{ stolon_restart_status.stdout | from_json if stolon_restart_status.stdout is match('\\s*{') else {} }}"
+    _master_uid: "{{ (_status.cluster | default({})).master_keeper_uid | default('') }}"
+
+- name: Restart the keepers of new stolon cluster {{ stolon_restart_cluster }}
+  when: stolon_restart_master_uid == ''
+  become: true
+  delegate_to: "{{ item }}"
+  ansible.builtin.systemd:
+    name: "stolon-keeper{% if stolon_multicluster %}@{{ stolon_restart_cluster }}{% endif %}.service"
+    state: restarted
+    enabled: "true"
+    daemon_reload: "true"
+  loop: "{{ stolon_restart_order }}"
+
+- name: Restart the keepers one host at a time for stolon cluster {{ stolon_restart_cluster }}
+  when: stolon_restart_master_uid != ''
+  ansible.builtin.include_tasks: restart-keeper-host.yml
+  loop: "{{ stolon_restart_order }}"
+  loop_control:
+    loop_var: stolon_restart_host

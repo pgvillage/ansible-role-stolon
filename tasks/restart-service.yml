@@ -1,0 +1,48 @@
+---
+# Restart the sentinels or proxies (stolon_restart_service) of all clusters on one host (stolon_restart_host),
+# and check they keep running (and that the proxies listen) before the next host is restarted.
+# Included (run once) by the `Restart stolon-stsentinel/stproxy one host at a time` handlers, once per host.
+
+- name: Restart stolon-{{ stolon_restart_service ~ ' on ' ~ stolon_restart_host }}
+  become: true
+  delegate_to: "{{ stolon_restart_host }}"
+  ansible.builtin.systemd:
+    name: "stolon-{{ stolon_restart_service }}{% if stolon_multicluster %}@{{ item }}{% endif %}.service"
+    state: restarted
+    enabled: "true"
+    daemon_reload: "true"
+  loop: "{{ stolon_clusters.keys() | list }}"
+  loop_control:
+    label: "cluster: {{ item }}"
+
+- name: Wait until the proxies listen on {{ stolon_restart_host }}
+  when:
+    - stolon_restart_service == 'proxy'
+    - _cluster.proxy_port | string != ''
+  delegate_to: "{{ stolon_restart_host }}"
+  ansible.builtin.wait_for:
+    host: "{{ _cluster.proxy_address }}"
+    port: "{{ _cluster.proxy_port | int }}"
+    timeout: "{{ stolon_rolling_restart_timeout }}"
+  loop: "{{ stolon_clusters.keys() | list }}"
+  loop_control:
+    label: "cluster: {{ item }}"
+  vars:
+    _cluster: "{{ hostvars[stolon_restart_host].stolon_restart_plan.clusters[item] }}"
+
+# A sentinel or proxy that can't start (e.g. a broken package or config) exits within a few seconds
+- name: Give stolon-{{ stolon_restart_service ~ ' time to start on ' ~ stolon_restart_host }}
+  ansible.builtin.pause:
+    seconds: "{{ stolon_rolling_restart_settle }}"
+  when: stolon_rolling_restart_settle | int > 0
+
+- name: Check stolon-{{ stolon_restart_service ~ ' still runs on ' ~ stolon_restart_host }}
+  become: true
+  delegate_to: "{{ stolon_restart_host }}"
+  ansible.builtin.systemd_service:
+    name: "stolon-{{ stolon_restart_service }}{% if stolon_multicluster %}@{{ item }}{% endif %}.service"
+  loop: "{{ stolon_clusters.keys() | list }}"
+  loop_control:
+    label: "cluster: {{ item }}"
+  register: stolon_restart_service_state
+  failed_when: stolon_restart_service_state.status.ActiveState != 'active'

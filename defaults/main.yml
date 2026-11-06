@@ -67,6 +67,24 @@ stolon_services:
   - sentinel
 
 # ------------------------------------------------------------------------------
+# Restarts
+# The services are restarted when their package, systemd unit, sysconfig or cgroups changed.
+# ------------------------------------------------------------------------------
+
+# Restart the services one host at a time, waiting until each is healthy again.
+# Keepers (per cluster): first the standbys, then the primary, after moving the primary to another keeper
+# with `stolonctl failkeeper`. A new cluster (no primary yet) restarts all its keepers at once.
+# Set to false to restart the services on all hosts without waiting (the old behaviour).
+stolon_rolling_restart: true
+# Seconds to wait for a restarted keeper to be healthy again (and streaming, for a standby), for a new primary
+# after moving the primary away, and for a restarted proxy to listen. Allow for a pg_rewind of the old primary.
+stolon_rolling_restart_timeout: 600
+# Seconds between health checks during a rolling restart.
+stolon_rolling_restart_delay: 5
+# Seconds a restarted sentinel or proxy must keep running before the next host is restarted.
+stolon_rolling_restart_settle: 5
+
+# ------------------------------------------------------------------------------
 # PostgreSQL
 # ------------------------------------------------------------------------------
 

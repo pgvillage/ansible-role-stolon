@@ -1,0 +1,137 @@
+---
+# Restart the keeper of one cluster (stolon_restart_cluster) on one host (stolon_restart_host), and wait until
+# it is healthy again before the next host is restarted. Included by restart-keeper.yml, once per host.
+#
+# When the keeper runs the primary, and another keeper is healthy, the primary is moved away first:
+# `stolonctl failkeeper` marks the keeper as failed for one check of the sentinel (the sentinel clears the flag
+# right away), so the sentinel elects a new primary (if it can), and the old primary becomes a standby.
+# A keeper that wasn't running (e.g. a new host) is just (re)started.
+
+- name: Get the state of the keeper of {{ stolon_restart_cluster ~ ' on ' ~ stolon_restart_host }}
+  become: true
+  delegate_to: "{{ stolon_restart_host }}"
+  ansible.builtin.systemd_service:
+    name: "stolon-keeper{% if stolon_multicluster %}@{{ stolon_restart_cluster }}{% endif %}.service"
+  register: stolon_restart_keeper_service
+
+- name: Get the status of stolon cluster {{ stolon_restart_cluster }}
+  become: true
+  become_user: "{{ stolon_user }}"
+  ansible.builtin.shell:
+    cmd: "{{ _stolon_restart_stolonctl }} status --format json"
+    executable: /bin/bash
+  environment:
+    STOLONCTL_CLUSTER_NAME: "{{ stolon_restart_cluster }}"
+    STOLONCTL_STORE_BACKEND: "{{ stolon_store_backend }}"
+  register: stolon_restart_status
+  changed_when: false
+
+- name: Decide how to restart the keeper of {{ stolon_restart_cluster ~ ' on ' ~ stolon_restart_host }}
+  ansible.builtin.set_fact:
+    stolon_restart_uid: "{{ _uid }}"
+    stolon_restart_was_running: "{{ stolon_restart_keeper_service.status.ActiveState == 'active' }}"
+    stolon_restart_is_master: "{{ _status.cluster.master_keeper_uid == _uid }}"
+    stolon_restart_failover: >-
+      {{
+         stolon_restart_keeper_service.status.ActiveState == 'active'
+         and _status.cluster.master_keeper_uid == _uid
+         and _status.keepers | rejectattr('uid', 'equalto', _uid) | selectattr('healthy') | selectattr('pg_healthy') | list | length > 0
+      }}
+  vars:
+    _uid: "{{ hostvars[stolon_restart_host].stolon_restart_plan.clusters[stolon_restart_cluster].keeper_uid }}"
+    _status: "{{ stolon_restart_status.stdout | from_json }}"
+
+- name: Move the primary away from keeper {{ stolon_restart_uid ~ ' of ' ~ stolon_restart_cluster }}
+  when: stolon_restart_failover | bool
+  become: true
+  become_user: "{{ stolon_user }}"
+  ansible.builtin.shell:
+    cmd: "{{ _stolon_restart_stolonctl }} failkeeper {{ stolon_restart_uid }}"
+    executable: /bin/bash
+  environment:
+    STOLONCTL_CLUSTER_NAME: "{{ stolon_restart_cluster }}"
+    STOLONCTL_STORE_BACKEND: "{{ stolon_store_backend }}"
+  changed_when: true
+
+- name: Wait until another keeper is a healthy primary of {{ stolon_restart_cluster }}
+  when: stolon_restart_failover | bool
+  become: true
+  become_user: "{{ stolon_user }}"
+  ansible.builtin.shell:
+    cmd: "{{ _stolon_restart_stolonctl }} status --format json"
+    executable: /bin/bash
+  environment:
+    STOLONCTL_CLUSTER_NAME: "{{ stolon_restart_cluster }}"
+    STOLONCTL_STORE_BACKEND: "{{ stolon_store_backend }}"
+  register: stolon_restart_poll
+  until: >-
+    stolon_restart_poll.rc == 0
+    and _master not in ['', stolon_restart_uid]
+    and _keeper.healthy | default(false)
+    and _keeper.pg_healthy | default(false)
+    and _keeper.pg_current_generation | default(-1) == _keeper.pg_wanted_generation | default(-2)
+  retries: "{{ _stolon_restart_retries }}"
+  delay: "{{ stolon_rolling_restart_delay }}"
+  changed_when: false
+  vars:
+    _status: "{{ stolon_restart_poll.stdout | from_json }}"
+    _master: "{{ (_status.cluster | default({})).master_keeper_uid | default('') }}"
+    _keeper: "{{ _status.keepers | default([]) | selectattr('uid', 'equalto', _master) | first | default({}) }}"
+
+- name: Restart the keeper of {{ stolon_restart_cluster ~ ' on ' ~ stolon_restart_host }}
+  become: true
+  delegate_to: "{{ stolon_restart_host }}"
+  ansible.builtin.systemd:
+    name: "stolon-keeper{% if stolon_multicluster %}@{{ stolon_restart_cluster }}{% endif %}.service"
+    state: restarted
+    enabled: "true"
+    daemon_reload: "true"
+
+# A standby (or the old primary) must be back in recovery and stream from the primary.
+# A primary that couldn't be moved (e.g. the only keeper) must be back as a primary.
+- name: Wait until PostgreSQL is back for {{ stolon_restart_cluster ~ ' on ' ~ stolon_restart_host }}
+  when: stolon_restart_was_running | bool
+  become: true
+  become_user: "{{ stolon_user }}"
+  delegate_to: "{{ stolon_restart_host }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ hostvars[stolon_restart_host].stolon_restart_plan.pg_bin_path }}/psql"
+      - --host=/tmp
+      - --port={{ hostvars[stolon_restart_host].stolon_restart_plan.clusters[stolon_restart_cluster].pg_port }}
+      - --dbname=postgres
+      - --no-align
+      - --tuples-only
+      - --command
+      - select pg_is_in_recovery(), (select status from pg_stat_wal_receiver)
+  register: stolon_restart_pg
+  until: stolon_restart_pg.rc == 0 and stolon_restart_pg.stdout == _expected
+  retries: "{{ _stolon_restart_retries }}"
+  delay: "{{ stolon_rolling_restart_delay }}"
+  changed_when: false
+  vars:
+    _expected: "{{ 'f|' if stolon_restart_is_master | bool and not stolon_restart_failover | bool else 't|streaming' }}"
+
+- name: Wait until stolon reports the keeper healthy for {{ stolon_restart_cluster ~ ' on ' ~ stolon_restart_host }}
+  when: stolon_restart_was_running | bool
+  become: true
+  become_user: "{{ stolon_user }}"
+  ansible.builtin.shell:
+    cmd: "{{ _stolon_restart_stolonctl }} status --format json"
+    executable: /bin/bash
+  environment:
+    STOLONCTL_CLUSTER_NAME: "{{ stolon_restart_cluster }}"
+    STOLONCTL_STORE_BACKEND: "{{ stolon_store_backend }}"
+  register: stolon_restart_poll
+  until: >-
+    stolon_restart_poll.rc == 0
+    and (_status.cluster | default({})).master_keeper_uid | default('') != ''
+    and _keeper.healthy | default(false)
+    and _keeper.pg_healthy | default(false)
+    and _keeper.pg_current_generation | default(-1) == _keeper.pg_wanted_generation | default(-2)
+  retries: "{{ _stolon_restart_retries }}"
+  delay: "{{ stolon_rolling_restart_delay }}"
+  changed_when: false
+  vars:
+    _status: "{{ stolon_restart_poll.stdout | from_json }}"
+    _keeper: "{{ _status.keepers | default([]) | selectattr('uid', 'equalto', stolon_restart_uid) | first | default({}) }}"
