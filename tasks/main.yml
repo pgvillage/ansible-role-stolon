@@ -46,6 +46,9 @@
 - name: Setup logging
   ansible.builtin.include_tasks: pglogging.yml
 
+- name: Restart the services that run a replaced binary
+  ansible.builtin.include_tasks: check-binaries.yml
+
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers
 

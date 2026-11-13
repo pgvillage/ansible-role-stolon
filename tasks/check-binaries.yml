@@ -1,0 +1,72 @@
+---
+# The stolon and PostgreSQL packages are usually upgraded outside this role (e.g. by the linux role with
+# linux_package_state latest, or unattended-upgrades), and needrestart skips the stolon units. A running
+# service then still runs the old binary: the binary was replaced (its ctime) after the process started.
+# Notify the (rolling) restart for those services. Reading /proc/<pid>/exe would need CAP_SYS_PTRACE,
+# which containers lack. A service that doesn't run (e.g. on a new host) is left alone.
+#
+# Keepers: the stolon-keeper binary, and the postgres binary of the cluster (pg_bin_path) against the
+# postmaster (its start time from postmaster.pid). Restarting the keeper restarts PostgreSQL.
+
+- name: Find keepers or PostgreSQL that started before their binary was replaced
+  when: "'keeper' in stolon_services"
+  become: true
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      {{ _stolon_binary_check }}
+      check_unit {{ unit }} {{ stolon_bin_path }}/stolon-keeper
+      # postmaster.pid: the PID of the postmaster (line 1) and its start time in seconds since the epoch (line 3)
+      pidfile={{ sysconfig.stkeeper.pgdata_dir }}/postmaster.pid
+      if [ -f "${pidfile}" ]; then
+        pid=$(sed -n 1p "${pidfile}")
+        if [ "$(cat "/proc/${pid}/comm" 2>/dev/null)" = postgres ]; then
+          check_time "$(sed -n 3p "${pidfile}")" {{ sysconfig.stkeeper.pg_bin_path }}/postgres
+        fi
+      fi
+    executable: /bin/bash
+  check_mode: false
+  loop: "{{ stolon_clusters | dict2items }}"
+  loop_control:
+    loop_var: cluster
+    label: "{{ cluster.key }}"
+  vars:
+    unit: "stolon-keeper{% if stolon_multicluster %}@{{ cluster.key }}{% endif %}.service"
+    sysconfig: "{{ stolon_default_sysconfig | combine((cluster.value.sysconfig | default({})), recursive=True) }}"
+  register: stolon_keeper_binary_check
+  changed_when: stolon_keeper_binary_check.stdout | length > 0
+  notify: Restart stolon-stkeeper
+
+- name: Find sentinels that started before their binary was replaced
+  when: "'sentinel' in stolon_services"
+  become: true
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      {{ _stolon_binary_check }}
+      check_unit {{ unit }} {{ stolon_bin_path }}/stolon-sentinel
+    executable: /bin/bash
+  check_mode: false
+  loop: "{{ stolon_clusters.keys() | list }}"
+  vars:
+    unit: "stolon-sentinel{% if stolon_multicluster %}@{{ item }}{% endif %}.service"
+  register: stolon_sentinel_binary_check
+  changed_when: stolon_sentinel_binary_check.stdout | length > 0
+  notify: Restart stolon-stsentinel
+
+- name: Find proxies that started before their binary was replaced
+  when: "'proxy' in stolon_services"
+  become: true
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      {{ _stolon_binary_check }}
+      check_unit {{ unit }} {{ stolon_bin_path }}/stolon-proxy
+    executable: /bin/bash
+  check_mode: false
+  loop: "{{ stolon_clusters.keys() | list }}"
+  vars:
+    unit: "stolon-proxy{% if stolon_multicluster %}@{{ item }}{% endif %}.service"
+  register: stolon_proxy_binary_check
+  changed_when: stolon_proxy_binary_check.stdout | length > 0
+  notify: Restart stolon-stproxy

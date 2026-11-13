@@ -56,3 +56,24 @@ _stolon_package_names:
   zypper:
     - stolon
     - python313-psycopg2
+
+# Bash functions for tasks/check-binaries.yml. They print a line when a binary was replaced (its ctime) after
+# a process started, and nothing when the process doesn't run. All times are wall-clock seconds since the epoch
+# (not systemd's monotonic timestamps, which don't count the time a host was suspended).
+# - check_unit <unit> <binary>: the start of the main process of a systemd unit (ExecMainStartTimestamp)
+# - check_time <started> <binary>: a start time that is already known (e.g. of the postmaster)
+_stolon_binary_check: |-
+  check_time() {
+    local replaced
+    replaced=$(stat -L -c %Z "${2}")
+    if [ "${replaced}" -gt "${1}" ]; then
+      echo "${2} was replaced at $(date -d "@${replaced}" '+%F %T'), after the start at $(date -d "@${1}" '+%F %T')"
+    fi
+  }
+  check_unit() {
+    local started
+    [ "$(systemctl show --property MainPID --value "${1}")" -gt 0 ] || return 0
+    started=$(TZ=UTC systemctl show --property ExecMainStartTimestamp --value "${1}")
+    [ -n "${started}" ] || return 0
+    check_time "$(TZ=UTC date -d "${started}" +%s)" "${2}"
+  }
