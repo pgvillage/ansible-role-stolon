@@ -149,3 +149,102 @@
       register: users
       failed_when: users.stdout != 'nrpe,pgquartz,pgroute66'
       changed_when: false
+
+# Upgrades outside the role (the linux role, unattended-upgrades): replace a binary (new ctime) after the
+# services started, as a package upgrade does, and converge again. First the postgres binary: the role must
+# restart the keepers (which restarts PostgreSQL), and leave the sentinels and proxies alone. Then the
+# stolon binaries: the role must restart all stolon services.
+- name: Upgrade the postgres binary behind the role's back
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Get the main PIDs of the stolon services
+      ansible.builtin.systemd_service:
+        name: stolon-{{ item[0] }}@{{ item[1] }}
+      loop: "{{ ['keeper', 'sentinel', 'proxy'] | product(['cluster1', 'cluster2']) | list }}"
+      register: services_before_pg
+
+    - name: Get the start time of PostgreSQL
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv: [/usr/pgsql-17/bin/psql, --host=/tmp, "--port={{ item }}", --no-align, --tuples-only,
+               --command, "select pg_postmaster_start_time()"]
+      loop: [5433, 5434]
+      register: pg_start_before
+      changed_when: false
+
+    - name: Wait, as the start time and ctime have a resolution of 1s
+      ansible.builtin.pause:
+        seconds: 2
+
+    - name: Replace the postgres binary, as a package upgrade does
+      ansible.builtin.shell: cp -p /usr/pgsql-17/bin/postgres /usr/pgsql-17/bin/postgres.new && mv /usr/pgsql-17/bin/postgres.new /usr/pgsql-17/bin/postgres
+      changed_when: true
+
+- name: Converge again, which restarts the keepers
+  ansible.builtin.import_playbook: converge.yml
+
+- name: Check the keepers and PostgreSQL were restarted, and only them
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check the keepers have a new main PID, the sentinels and proxies not
+      ansible.builtin.systemd_service:
+        name: stolon-{{ item.item[0] }}@{{ item.item[1] }}
+      loop: "{{ services_before_pg.results }}"
+      loop_control:
+        label: "{{ item.item | join('@') }}"
+      register: service_after
+      failed_when: (service_after.status.MainPID != item.status.MainPID) != (item.item[0] == 'keeper')
+
+    - name: Check PostgreSQL has a new start time, and runs as a primary again
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv: [/usr/pgsql-17/bin/psql, --host=/tmp, "--port={{ item.item }}", --no-align, --tuples-only,
+               --command, "select pg_postmaster_start_time(), pg_is_in_recovery()"]
+      loop: "{{ pg_start_before.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      register: pg_start_after
+      until: pg_start_after.rc == 0
+      retries: 30
+      delay: 2
+      failed_when: pg_start_after.rc != 0 or pg_start_after.stdout == item.stdout ~ '|f' or not pg_start_after.stdout.endswith('|f')
+      changed_when: false
+
+- name: Upgrade the stolon binaries behind the role's back
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Get the main PIDs of the stolon services
+      ansible.builtin.systemd_service:
+        name: stolon-{{ item[0] }}@{{ item[1] }}
+      loop: "{{ ['keeper', 'sentinel', 'proxy'] | product(['cluster1', 'cluster2']) | list }}"
+      register: services_before_stolon
+
+    - name: Wait, as the start time and ctime have a resolution of 1s
+      ansible.builtin.pause:
+        seconds: 2
+
+    - name: Replace the stolon binaries, as a package upgrade does
+      ansible.builtin.shell: cp -p /usr/bin/{{ item }} /usr/bin/{{ item }}.new && mv /usr/bin/{{ item }}.new /usr/bin/{{ item }}
+      loop: [stolon-keeper, stolon-sentinel, stolon-proxy]
+      changed_when: true
+
+- name: Converge again, which restarts the stolon services
+  ansible.builtin.import_playbook: converge.yml
+
+- name: Check the stolon services were restarted
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check every stolon service has a new main PID
+      ansible.builtin.systemd_service:
+        name: stolon-{{ item.item[0] }}@{{ item.item[1] }}
+      loop: "{{ services_before_stolon.results }}"
+      loop_control:
+        label: "{{ item.item | join('@') }}"
+      register: service_after
+      failed_when: service_after.status.MainPID == item.status.MainPID

@@ -51,8 +51,23 @@ PostgreSQL package then neither starts services nor creates a main cluster next 
 
 ## Restarts
 
-The role restarts the stolon services when their package (e.g. stolon 0.19.7 -> 0.19.8), systemd unit
-(e.g. a new `stolon_bin_path`), sysconfig or cgroups changed. By default it restarts them one host at a time:
+The role restarts the stolon services when:
+
+- the role installed or upgraded the stolon package (e.g. stolon 0.19.7 -> 0.19.8),
+- their systemd unit (e.g. a new `stolon_bin_path`), sysconfig or cgroups changed, or
+- they run a binary that was replaced after they started, e.g. when the linux role (`linux_package_state: latest`),
+  unattended-upgrades or a manual upgrade upgraded the packages: `stolon-keeper`, `stolon-sentinel` and
+  `stolon-proxy` in `stolon_bin_path` (compared with the start time of the service), and for the keepers also
+  `postgres` in the `pg_bin_path` of the cluster (compared with the start time of the postmaster, from
+  `postmaster.pid`), e.g. after a PostgreSQL minor update. The binary's ctime is compared, as reading
+  `/proc/<pid>/exe` needs `CAP_SYS_PTRACE`, which containers lack. These checks only report changed when
+  a service has to restart, and skip services that don't run.
+
+Restarting a keeper restarts its PostgreSQL (the unit stops all its processes), so PostgreSQL then runs the new
+binaries. As the role restarts the services itself, exclude the stolon units from needrestart on Ubuntu (the
+linux role does).
+
+By default the role restarts the services one host at a time:
 
 - Keepers, per cluster: first the standbys, one host at a time. After every restart the role waits until
   PostgreSQL is back in recovery and streams from the primary (`pg_stat_wal_receiver`), and stolon

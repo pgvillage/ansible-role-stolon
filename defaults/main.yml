@@ -49,7 +49,10 @@ stolon_services:
 
 # ------------------------------------------------------------------------------
 # Restarts
-# The services are restarted when their package, systemd unit, sysconfig or cgroups changed.
+# The services are restarted when their package, systemd unit, sysconfig or cgroups changed, and when they
+# run a binary that was replaced since they started (e.g. upgraded by the linux role or unattended-upgrades):
+# stolon-keeper, stolon-sentinel, stolon-proxy, and for the keepers also postgres (in the pg_bin_path of the
+# cluster). Restarting a keeper restarts its PostgreSQL.
 # ------------------------------------------------------------------------------
 
 # Restart the services one host at a time, waiting until each is healthy again.
