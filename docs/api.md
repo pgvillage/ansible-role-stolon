@@ -2,7 +2,7 @@
 
 This document describes all variables of the `pgvillage.stolon` role, as defined in
 [defaults/main.yml](../defaults/main.yml). All variables can be overridden from inventory,
-playbook or extra vars.
+playbook or extra vars, except the internal ones (prefixed with `_`) in [vars/main.yml](../vars/main.yml).
 
 ## Contents
 
@@ -29,8 +29,8 @@ playbook or extra vars.
 | `stolon_bin_path` | `/usr/bin` | Folder containing the stolon binaries (`stolonctl`, `stolon-keeper`, `stolon-sentinel`, `stolon-proxy`). Used in the systemd units, handlers, tasks and helper scripts. |
 | `stolon_binary_owner` | `root` | User used (`become_user`) to create the stolon installation folders. |
 | `stolon_package_name_state` | `present` | State of the stolon packages (and local packages), e.g. `present` or `latest`. |
-| `stolon_package_names` | selected from `_stolon_package_names` | List of packages to install from the configured repositories. By default selected from `_stolon_package_names` based on `ansible_facts.pkg_mgr`. |
-| `_stolon_package_names` | see below | Packages to install per package manager. The `default` key is used when the package manager is not listed. |
+| `stolon_package_names` | selected from `_stolon_package_names` | List of packages to install from the configured repositories. By default built from `_stolon_package_names` in [vars/main.yml](../vars/main.yml), based on `ansible_facts.pkg_mgr`. |
+| `_stolon_package_names` | see below | Internal, defined in [vars/main.yml](../vars/main.yml). Packages to install per package manager. The `default` key is used when the package manager is not listed. As a role variable it takes precedence over the inventory, so set `stolon_package_names` instead. |
 | `stolon_local_package_names` | `[]` | List of local package files (from the role / playbook files path) that are copied to `/tmp` on the target and installed from there. |
 | `stolon_sysctl` | `vm.swappiness = 10` | Contents of `/etc/sysctl.d/postgresql.conf`. |
 | `stolon_sysctl_apply` | `true` | Apply the sysctl config right away (`sysctl --system`). Set to `false` where kernel parameters can't be set (containers). |

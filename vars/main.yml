@@ -36,3 +36,23 @@ _stolon_restart_stolonctl: >-
 
 # Number of health checks during a rolling restart (stolon_rolling_restart_timeout / stolon_rolling_restart_delay)
 _stolon_restart_retries: "{{ (stolon_rolling_restart_timeout | int / stolon_rolling_restart_delay | int) | round(0, 'ceil') | int }}"
+
+# Internal: packages to install per package manager (key is ansible_facts.pkg_mgr).
+# The `default` key is used when the package manager is not listed.
+# Role variable, so an inventory can't override it: set stolon_package_names instead.
+_stolon_package_names:
+  default:
+    - stolon
+    - python3-psycopg3
+
+  dnf:
+    - stolon
+    - python3-psycopg3
+
+  apt:
+    - stolon
+    - python3-psycopg2
+
+  zypper:
+    - stolon
+    - python313-psycopg2
