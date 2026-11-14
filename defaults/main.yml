@@ -53,6 +53,9 @@ stolon_services:
 # run a binary that was replaced since they started (e.g. upgraded by the linux role or unattended-upgrades):
 # stolon-keeper, stolon-sentinel, stolon-proxy, and for the keepers also postgres (in the pg_bin_path of the
 # cluster). Restarting a keeper restarts its PostgreSQL.
+# The keepers are also restarted when PostgreSQL has parameters that wait for a restart (pending_restart in
+# pg_settings, e.g. after a spec change of shared_buffers or archive_mode; recovery_target_timeline is ignored, as
+# stolon sets it after every failover): only the keepers of those clusters.
 # ------------------------------------------------------------------------------
 
 # Restart the services one host at a time, waiting until each is healthy again.
@@ -148,7 +151,8 @@ stolon_data_dir: "/var/lib/pgsql/{{ stolon_pg_version }}/data"
 stolon_config_dir: "/var/lib/pgsql/{{ stolon_pg_version }}/config"
 # Path of the stolon custom config (cluster spec) file.
 stolon_custom_config_file: "{{ stolon_config_dir }}/stolon_custom_config.yml"
-# Folder of stolon_custom_config_file. Used by the handler that applies the cluster spec.
+# Folder of stolon_custom_config_file. Not used by the role anymore: it applies the cluster spec from the
+# custom_config file in stolon_config_dir.
 stolon_custom_config_dir: "{{ stolon_custom_config_file | dirname }}"
 # PostgreSQL WAL directory (STKEEPER_WAL_DIR / STKEEPER_PGWAL_DIR) (single cluster mode).
 # min_wal_size and max_wal_size are calculated per cluster from the size of the filesystem of its wal_dir.

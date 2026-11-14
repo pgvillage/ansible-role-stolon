@@ -62,6 +62,11 @@ The role restarts the stolon services when:
   `postmaster.pid`), e.g. after a PostgreSQL minor update. The binary's ctime is compared, as reading
   `/proc/<pid>/exe` needs `CAP_SYS_PTRACE`, which containers lack. These checks only report changed when
   a service has to restart, and skip services that don't run.
+- PostgreSQL has parameters that wait for a restart (`pending_restart` in `pg_settings`), e.g. after a change of
+  `shared_buffers` or `archive_mode` in the cluster spec. Only the keepers of the clusters with such parameters
+  restart. The role checks this after the other restarts, once the keepers run with the cluster spec (stolon's
+  generation of every healthy database). `recovery_target_timeline` is ignored: stolon sets it on a new primary
+  after every failover, where it waits for a restart that changes nothing. PostgreSQL that doesn't run is skipped.
 
 Restarting a keeper restarts its PostgreSQL (the unit stops all its processes), so PostgreSQL then runs the new
 binaries. As the role restarts the services itself, exclude the stolon units from needrestart on Ubuntu (the
@@ -123,7 +128,7 @@ Only the hosts that were notified are restarted. With `serial`, every batch rest
 | `stolon_data_dir` | `/var/lib/pgsql/{{ stolon_pg_version }}/data` | Stolon data directory (`STKEEPER_DATA_DIR`). |
 | `stolon_config_dir` | `/var/lib/pgsql/{{ stolon_pg_version }}/config` | Folder for the stolon custom config (cluster spec) files. |
 | `stolon_custom_config_file` | `{{ stolon_config_dir }}/stolon_custom_config.yml` | Path of the stolon custom config (cluster spec) file. |
-| `stolon_custom_config_dir` | `{{ stolon_custom_config_file \| dirname }}` | Folder of `stolon_custom_config_file`. Used by the handler that applies the cluster spec. |
+| `stolon_custom_config_dir` | `{{ stolon_custom_config_file \| dirname }}` | Folder of `stolon_custom_config_file`. Not used by the role anymore: it applies the cluster spec from the custom_config file in `stolon_config_dir`. |
 | `stolon_wal_dir` | `{{ stolon_pg_datadir }}/pg_wal` | PostgreSQL WAL directory (`STKEEPER_WAL_DIR` / `STKEEPER_PGWAL_DIR`) in single cluster mode. |
 | `stolon_proxy_listen_address` | `{{ ansible_facts.default_ipv4.address }}` | Address the stolon proxy listens on (`STPROXY_LISTEN_ADDRESS`). |
 | `stolon_uid` | `inventory_hostname_short`, `-` replaced by `_`, lowercased | Unique id of the keeper (`STKEEPER_UID`). Must be unique within the cluster. |
@@ -205,6 +210,14 @@ More info:
 - <https://github.com/sorintlab/stolon/blob/master/doc/cluster_spec.md>
 - <https://github.com/sorintlab/stolon/blob/master/doc/postgres_parameters.md>
 - <https://github.com/sorintlab/stolon/blob/master/doc/custom_pg_hba_entries.md>
+
+The role writes the spec of every cluster to a custom_config file (`stolon_config_dir`) and creates a new cluster
+with it (`stolonctl init`). On every run it compares the spec in stolon (`stolonctl spec`) with the file, and applies
+the file (`stolonctl update --patch`) when they differ: not only when the file changed, but also when the spec was
+changed with `stolonctl`, or the cluster was created with another spec (e.g. by PgVillage v2.0.1). Only the keys of
+the file are compared (stolon keeps its own, e.g. `initMode`), numbers and strings by their text. The spec is applied
+before the restarts, and parameters that then wait for a restart restart the keepers (see [Restarts](#restarts)).
+Keys you remove from the file stay in stolon: remove them with `stolonctl update --patch` (value `null`).
 
 | Variable | Default | Description |
 |----------|---------|-------------|

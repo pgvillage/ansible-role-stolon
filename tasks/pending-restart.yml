@@ -1,0 +1,70 @@
+---
+# Restart PostgreSQL (its keeper, with the rolling restart) when parameters wait for a restart (pending_restart in
+# pg_settings), e.g. after a spec change of shared_buffers or archive_mode, or on a cluster that was created with
+# an empty spec. Only the clusters with pending parameters are restarted.
+# recovery_target_timeline is ignored: stolon sets it on a new primary after every failover, where it waits for a
+# restart that changes nothing.
+
+# A spec that was just applied takes the keepers a few seconds: the sentinel copies it to every database
+# (generation), and the keeper rewrites postgresql.conf and reloads PostgreSQL (currentGeneration).
+# Keepers that aren't healthy (e.g. down) are not waited for.
+- name: Wait until the keepers run with the cluster spec
+  become: true
+  become_user: "{{ stolon_user }}"
+  ansible.builtin.command: "{{ stolon_bin_path }}/stolonctl clusterdata read"
+  environment:
+    STOLONCTL_CLUSTER_NAME: "{{ cluster.key }}"
+    STOLONCTL_STORE_BACKEND: "{{ sysconfig.stkeeper.store_backend }}"
+  loop: "{{ stolon_clusters | dict2items }}"
+  loop_control:
+    loop_var: cluster
+    label: "{{ cluster.key }}"
+  vars:
+    sysconfig: "{{ stolon_default_sysconfig | combine((cluster.value.sysconfig | default({})), recursive=True) }}"
+    # The healthy databases that don't run with the cluster spec yet
+    _behind: >-
+      {%- set clusterdata = stolon_clusterdata.stdout | from_json -%}
+      {%- set ns = namespace(dbs=[]) -%}
+      {%- for uid, db in (clusterdata.dbs | default({}, true)).items() if (db.status | default({})).healthy | default(false) -%}
+      {%-   if (db.spec.pgParameters | default({}, true)) != (clusterdata.cluster.spec.pgParameters | default({}, true))
+              or db.generation | default(0) != db.status.currentGeneration | default(0) -%}
+      {%-     set ns.dbs = ns.dbs + [uid] -%}
+      {%-   endif -%}
+      {%- endfor -%}
+      {{ ns.dbs }}
+  register: stolon_clusterdata
+  until: stolon_clusterdata.rc == 0 and _behind | length == 0
+  retries: "{{ _stolon_restart_retries }}"
+  delay: "{{ stolon_rolling_restart_delay }}"
+  run_once: true
+  changed_when: false
+  check_mode: false
+
+# A keeper that doesn't run (e.g. on a new host, or stopped) has no PostgreSQL to ask: nothing to restart
+- name: Find the parameters that wait for a restart of PostgreSQL
+  become: true
+  become_user: "{{ stolon_user }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ stolon_pg_bin_path }}/psql"
+      - --host=/tmp
+      - --port={{ sysconfig.stkeeper.pg_port }}
+      - --dbname=postgres
+      - --no-align
+      - --tuples-only
+      - --no-psqlrc
+      - --command
+      - >-
+        select coalesce(string_agg(name, ', ' order by name), '') from pg_settings
+        where pending_restart and name <> 'recovery_target_timeline'
+  loop: "{{ stolon_clusters | dict2items }}"
+  loop_control:
+    loop_var: cluster
+    label: "{{ cluster.key }}"
+  vars:
+    sysconfig: "{{ stolon_default_sysconfig | combine((cluster.value.sysconfig | default({})), recursive=True) }}"
+  register: stolon_pending_restart
+  changed_when: stolon_pending_restart.rc == 0 and stolon_pending_restart.stdout | length > 0
+  failed_when: false
+  check_mode: false
+  notify: Restart stolon-stkeeper for pending parameters

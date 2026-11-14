@@ -1,5 +1,5 @@
 ---
-# Rolling restart of the keepers of one cluster (stolon_restart_cluster), on the hosts that were notified.
+# Rolling restart of the keepers of one cluster (stolon_restart_cluster), on the hosts that were notified for it.
 # Included (run once) by the `Restart stolon-stkeeper one host at a time` handler, once per cluster.
 #
 # When the cluster has a primary, the hosts are restarted one at a time: first the standbys, then the
@@ -35,7 +35,9 @@
       {{ ns.standbys + ns.primaries }}
   vars:
     _hosts: "{{ ansible_play_batch | map('extract', hostvars) | selectattr('stolon_restart_pending', 'defined')
-                | selectattr('stolon_restart_pending', 'contains', 'keeper') | map(attribute='inventory_hostname') | list }}"
+                | selectattr('stolon_restart_pending', 'contains', 'keeper')
+                | selectattr('stolon_restart_keeper_clusters', 'contains', stolon_restart_cluster)
+                | map(attribute='inventory_hostname') | list }}"
     _status: "{{ stolon_restart_status.stdout | from_json if stolon_restart_status.stdout is match('\\s*{') else {} }}"
     _master_uid: "{{ (_status.cluster | default({})).master_keeper_uid | default('') }}"
 

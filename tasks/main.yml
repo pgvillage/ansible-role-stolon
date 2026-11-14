@@ -58,6 +58,13 @@
   loop_control:
     loop_var: cluster
 
+# After the restarts above, and with every keeper started
+- name: Restart PostgreSQL where parameters wait for a restart
+  ansible.builtin.include_tasks: pending-restart.yml
+
+- name: Flush handlers, for the restarts of PostgreSQL
+  ansible.builtin.meta: flush_handlers
+
 - name: Configure users per cluster
   ansible.builtin.include_tasks: pgusers.yml
   loop: "{{ stolon_clusters | dict2items }}"
