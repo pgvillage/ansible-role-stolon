@@ -22,7 +22,7 @@ stolon_binary_owner: root
 stolon_package_name_state: present
 
 # List of packages to install from the configured repositories.
-# By default this is selected from _stolon_package_names, based on the package manager of the target.
+# Built from _stolon_package_names in vars/main.yml: the entry for the package manager of the target.
 stolon_package_names: >-
   {{
     _stolon_package_names.get(
@@ -30,25 +30,6 @@ stolon_package_names: >-
       _stolon_package_names.default
     )
   }}
-
-# Packages to install per package manager (key is ansible_facts.pkg_mgr).
-# The `default` key is used when the package manager is not listed.
-_stolon_package_names:
-  default:
-    - stolon
-    - python3-psycopg3
-
-  dnf:
-    - stolon
-    - python3-psycopg3
-
-  apt:
-    - stolon
-    - python3-psycopg2
-
-  zypper:
-    - stolon
-    - python313-psycopg2
 
 # List of local package files (from the role / playbook files path) that are copied to /tmp
 # on the target and installed from there.
