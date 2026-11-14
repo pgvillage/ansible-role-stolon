@@ -1,0 +1,59 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Read the apt guard files
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop:
+        - /usr/sbin/policy-rc.d
+        - /etc/postgresql-common/createcluster.conf
+      register: guard
+
+    - name: Check the apt guard files
+      ansible.builtin.assert:
+        that:
+          - (guard.results[0].content | b64decode) == 'exit 101\n'
+          - (guard.results[1].content | b64decode) == 'create_main_cluster = false\n'
+
+    - name: Find the clusters of postgresql-common
+      ansible.builtin.find:
+        paths: /etc/postgresql
+        file_type: any
+      register: pgcommon_clusters
+
+    - name: Check installing postgresql-17 didn't create a main cluster
+      ansible.builtin.assert:
+        that: pgcommon_clusters.matched == 0
+        fail_msg: "/etc/postgresql has {{ pgcommon_clusters.files | map(attribute='path') | list }}"
+
+    - name: Get the processes of postgres
+      ansible.builtin.command: ps -o args= -u postgres
+      register: postgres_processes
+      changed_when: false
+      failed_when: false
+
+    # Only the PostgreSQL of the stolon cluster runs (its data dir is in /var/lib/postgresql/cluster1)
+    - name: Check apt started no PostgreSQL
+      ansible.builtin.assert:
+        that: postgres_processes.stdout_lines | select('search', 'postgres -D') | reject('search', 'cluster1') | list | length == 0
+        fail_msg: "{{ postgres_processes.stdout_lines }}"
+
+    - name: Check the stolon services are running
+      ansible.builtin.systemd_service:
+        name: stolon-{{ item }}@cluster1
+      loop: [keeper, sentinel, proxy]
+      register: service
+      failed_when: service.status.ActiveState != 'active'
+
+    - name: Check PostgreSQL of the stolon cluster is the primary
+      become: true
+      become_user: postgres
+      ansible.builtin.command: /usr/lib/postgresql/17/bin/psql -h /tmp -p 5433 -d postgres -Atc 'select pg_is_in_recovery()'
+      register: recovery
+      changed_when: false
+      retries: 30
+      delay: 2
+      until: recovery.rc == 0
+      failed_when: recovery.rc != 0 or recovery.stdout != 'f'

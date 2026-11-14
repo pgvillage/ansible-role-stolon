@@ -45,6 +45,10 @@ Default `_stolon_package_names`:
 | `apt` | `stolon`, `python3-psycopg2` |
 | `zypper` | `stolon`, `python313-psycopg2` |
 
+On Debian and Ubuntu (apt), the role first writes `/usr/sbin/policy-rc.d` (`exit 101`) and
+`/etc/postgresql-common/createcluster.conf` (`create_main_cluster = false`), as the linux role does: installing a
+PostgreSQL package then neither starts services nor creates a main cluster next to the stolon clusters.
+
 ## Restarts
 
 The role restarts the stolon services when their package (e.g. stolon 0.19.7 -> 0.19.8), systemd unit

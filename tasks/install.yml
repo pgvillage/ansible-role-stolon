@@ -7,6 +7,10 @@
     - ansible_facts.architecture != "x86_64"
     - stolon_package_names|length == 0
 
+- name: Keep apt from starting services and creating a PostgreSQL main cluster
+  ansible.builtin.include_tasks: apt-guard.yml
+  when: ansible_facts.pkg_mgr == 'apt'
+
 - name: Create stolon folders
   become: true
   become_user: "{{ stolon_binary_owner }}"

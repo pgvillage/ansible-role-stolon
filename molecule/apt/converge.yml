@@ -1,0 +1,54 @@
+---
+- name: Converge
+  hosts: all
+  vars:
+    # The role installs PostgreSQL here (in PgVillage the linux role does, for now), after its apt guard
+    stolon_package_names: [stolon, python3-psycopg2, postgresql-17]
+    stolon_pg_bin_path: /usr/lib/postgresql/17/bin
+    stolon_multicluster: true
+    # Containers can't set kernel parameters
+    stolon_sysctl_apply: false
+    # The certificates are created in prepare.yml (as chainsmith does in PgVillage)
+    stolon_cert_managed: false
+    stolon_pg_certdir: /var/lib/postgresql/certs
+    stolon_cluster_hosts: "{{ ansible_facts.fqdn }}"
+    stolon_pg_hba:
+      - local all all ident
+      - hostssl all all samenet cert
+    stolon_clusters:
+      cluster1:
+        sysconfig:
+          stsentinel:
+            cluster_name: cluster1
+          stkeeper:
+            cluster_name: cluster1
+            pg_port: 5433
+            data_dir: /var/lib/postgresql/cluster1
+            pgdata_dir: /var/lib/postgresql/cluster1/postgres
+            wal_dir: /var/lib/postgresql/cluster1/wal
+            pgwal_dir: /var/lib/postgresql/cluster1/wal
+          stproxy:
+            cluster_name: cluster1
+            port: 25433
+        custom_config:
+          pgParameters:
+            log_directory: /var/lib/postgresql/log/cluster1
+  tasks:
+    - name: Converge, and show the stolon and etcd logs when it fails
+      block:
+        - name: Run the role
+          ansible.builtin.include_role:
+            name: pgvillage.stolon
+      rescue:
+        - name: Get the logs of stolon and etcd
+          ansible.builtin.command: journalctl --no-pager --lines 200 --unit 'stolon-*' --unit etcd
+          register: logs
+          changed_when: false
+
+        - name: Show the logs of stolon and etcd
+          ansible.builtin.debug:
+            var: logs.stdout_lines
+
+        - name: Fail, as the role failed
+          ansible.builtin.fail:
+            msg: "{{ ansible_failed_result.msg | default('The role failed') }}"

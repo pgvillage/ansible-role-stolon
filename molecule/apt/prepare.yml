@@ -1,0 +1,76 @@
+---
+# The PgVillage and PGDG apt repos (as the linux role adds them), the postgres user (in PgVillage the PostgreSQL
+# packages create it, here the role installs them, but needs the user before that) and the certificates (see the
+# default scenario). No PostgreSQL package is installed here: the role installs it, after its apt guard.
+- name: Prepare
+  hosts: all
+  vars:
+    pgvillage_repo: https://repo.pgvillage.org/apt/v0.0.5
+    certdir: /var/lib/postgresql/certs
+    clientdir: /var/lib/postgresql/.postgresql
+  tasks:
+    - name: Install the tools to add the repos, and openssl
+      ansible.builtin.apt:
+        name: [ca-certificates, gnupg, openssl]
+        update_cache: true
+        state: present
+
+    - name: Download the keys of the repos
+      ansible.builtin.get_url:
+        url: "{{ item.value }}"
+        dest: /etc/apt/keyrings/{{ item.key }}.asc
+        mode: "0644"
+      loop: "{{ keys | dict2items }}"
+      vars:
+        keys:
+          pgvillage: https://repo.pgvillage.org/apt/pgvillage.asc
+          postgresql: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+
+    - name: Add the PgVillage repo (stolon, etcd) and the PGDG repo (PostgreSQL 17)
+      ansible.builtin.apt_repository:
+        repo: "{{ item }}"
+        state: present
+      loop:
+        - >-
+          deb [signed-by=/etc/apt/keyrings/pgvillage.asc] {{ pgvillage_repo }}
+          {{ ansible_facts.distribution_release }} main
+        - >-
+          deb [signed-by=/etc/apt/keyrings/postgresql.asc] https://apt.postgresql.org/pub/repos/apt
+          {{ ansible_facts.distribution_release }}-pgdg main
+
+    # As postgresql-common creates it
+    - name: Create the postgres user
+      ansible.builtin.user:
+        name: postgres
+        system: true
+        home: /var/lib/postgresql
+        shell: /bin/bash
+
+    - name: Create the certificate folders
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: "0700"
+      loop:
+        - "{{ certdir }}"
+        - "{{ clientdir }}"
+
+    - name: Create a CA, a server and a client certificate
+      ansible.builtin.shell:
+        cmd: |
+          set -e
+          openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj /CN=molecule-ca -keyout ca.key -out ca.crt
+          openssl req -newkey rsa:2048 -nodes -subj "/CN={{ ansible_facts.fqdn }}" -keyout server.key -out server.csr
+          printf 'subjectAltName=DNS:%s,DNS:localhost,IP:%s,IP:127.0.0.1\n' \
+            "{{ ansible_facts.fqdn }}" "{{ ansible_facts.default_ipv4.address }}" > server.ext
+          openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 30 -extfile server.ext -out server.crt
+          cp ca.crt root.crt
+          openssl req -newkey rsa:2048 -nodes -subj /CN=postgres -keyout {{ clientdir }}/postgresql.key -out client.csr
+          openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 30 -out {{ clientdir }}/postgresql.crt
+          cp ca.crt {{ clientdir }}/root.crt
+          chown postgres: server.* root.crt {{ clientdir }}/*
+          chmod 0600 server.key {{ clientdir }}/postgresql.key
+        chdir: "{{ certdir }}"
+        creates: "{{ certdir }}/server.crt"
