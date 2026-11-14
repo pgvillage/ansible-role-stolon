@@ -1,5 +1,31 @@
 ---
-# First the restart handlers: change the sysconfig of every stolon component of
+# First, before anything restarts PostgreSQL: a new cluster must run with its cluster spec from the start
+# (the role creates it with the spec). The parameters that need a restart (shared_buffers,
+# logging_collector) must be in effect, not pending a restart, and ssl must be on.
+- name: Check the new clusters run with their cluster spec
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Get the settings that need a restart, and the ones pending a restart
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - /usr/pgsql-17/bin/psql
+          - --host=/tmp
+          - --port={{ item }}
+          - --no-align
+          - --tuples-only
+          - --command
+          - >-
+            select current_setting('logging_collector'), current_setting('ssl'),
+            (select coalesce(string_agg(name, ','), '') from pg_settings where pending_restart)
+      loop: [5433, 5434]
+      register: spec_settings
+      failed_when: spec_settings.stdout != 'on|on|'
+      changed_when: false
+
+# Then the restart handlers: change the sysconfig of every stolon component of
 # cluster1 behind the role's back, converge again (the role puts them back and
 # notifies the restart handlers), and check every service was restarted. Then
 # check stolon and PostgreSQL work, after that restart.

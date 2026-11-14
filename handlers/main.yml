@@ -4,6 +4,21 @@
 # Tasks notify `Restart stolon-stkeeper`, `Restart stolon-stsentinel` and `Restart stolon-stproxy`
 # (package, unit file, sysconfig or cgroups changed). The handlers below listen to them and run in this order.
 
+# Update the cluster spec first: a keeper restarted below then also starts PostgreSQL with the parameters
+# of the new spec that need a restart.
+- name: Update cluster spec
+  become: true
+  become_user: "{{ stolon_user }}"
+  ansible.builtin.shell:
+    cmd: '{{ stolon_bin_path }}/stolonctl update --patch --file "${STOLONCTL_FILE}"'
+  environment:
+    STOLONCTL_CLUSTER_NAME: "{{ item }}"
+    STOLONCTL_STORE_BACKEND: "{{ stolon_store_backend }}"
+    STOLONCTL_FILE: "{{ stolon_custom_config_dir }}/stolon_custom_config{% if stolon_multicluster %}-{{ item }}{% endif %}.yml"
+  loop: "{{ stolon_clusters.keys() }}"
+  run_once: true
+  changed_when: false
+
 # Flag the notified hosts, and store what the rolling restart needs to know about them.
 # The facts are set on the host itself, as the rolling restart runs once and delegates to it.
 - name: Plan the stolon-stkeeper restart
@@ -115,19 +130,6 @@
     - Restart stolon-stproxy
   ansible.builtin.set_fact:
     stolon_restart_pending: []
-
-- name: Update cluster spec
-  become: true
-  become_user: "{{ stolon_user }}"
-  ansible.builtin.shell:
-    cmd: '{{ stolon_bin_path }}/stolonctl update --patch --file "${STOLONCTL_FILE}"'
-  environment:
-    STOLONCTL_CLUSTER_NAME: "{{ item }}"
-    STOLONCTL_STORE_BACKEND: "{{ stolon_store_backend }}"
-    STOLONCTL_FILE: "{{ stolon_custom_config_dir }}/stolon_custom_config{% if stolon_multicluster %}-{{ item }}{% endif %}.yml"
-  loop: "{{ stolon_clusters.keys() }}"
-  run_once: true
-  changed_when: false
 
 - name: Apply sysctl changes
   ansible.builtin.command: "sysctl --system"

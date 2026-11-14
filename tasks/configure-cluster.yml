@@ -94,16 +94,23 @@
   notify:
     - Update cluster spec
 
+# A new cluster is created with its cluster spec (the custom_config file above, with initMode new unless
+# the spec sets another), so the keeper runs initdb with it. Created with an empty spec, PostgreSQL started
+# without the parameters that need a restart (archive_mode, shared_buffers, ...), and when the spec update
+# came after initdb, stolon replaced its pgParameters with the defaults of initdb (ssl off).
+# An existing cluster (stolonctl status works) is left alone: the handler `Update cluster spec` updates it.
 - name: Init when needed
   become: true
   become_user: "{{ stolon_user }}"
   ansible.builtin.shell:
-    cmd: "{{ stolon_bin_path }}/stolonctl status || {{ stolon_bin_path }}/stolonctl init -y"
+    cmd: "{{ stolon_bin_path }}/stolonctl status || {{ stolon_bin_path }}/stolonctl init -y --file -"
+    stdin: "{{ {'initMode': 'new'} | combine(stolon_default_custom_config, custom_config, recursive=True) | to_json }}"
   args:
     creates: "{{ sysconfig.stkeeper.pgdata_dir }}/PG_VERSION"
     executable: "/bin/bash"
   vars:
     sysconfig: "{{ stolon_default_sysconfig | combine((cluster.value.sysconfig | default({})), recursive=True) }}"
+    custom_config: "{{ {'pgParameters': stolon_wal_size_parameters} | combine((cluster.value.custom_config | default({})), recursive=True) }}"
   environment:
     STOLONCTL_CLUSTER_NAME: "{{ cluster.key }}"
     STOLONCTL_STORE_BACKEND: "{{ sysconfig.stkeeper.store_backend }}"
