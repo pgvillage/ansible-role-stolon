@@ -77,3 +77,6 @@ _stolon_binary_check: |-
     [ -n "${started}" ] || return 0
     check_time "$(TZ=UTC date -d "${started}" +%s)" "${2}"
   }
+
+# The stolon binaries that must be in stolon_bin_path (see tasks/install.yml)
+_stolon_binaries: [stolon-keeper, stolon-sentinel, stolon-proxy, stolonctl]
