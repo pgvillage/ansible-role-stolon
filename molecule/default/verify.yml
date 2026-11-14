@@ -248,3 +248,124 @@
         label: "{{ item.item | join('@') }}"
       register: service_after
       failed_when: service_after.status.MainPID == item.status.MainPID
+
+# Then the repair of a cluster: cluster1 gets the spec of a cluster created by `stolonctl init -y` (initMode only,
+# as PgVillage v2.0.1 created it), and PostgreSQL restarts with it (no logging_collector, no ssl, no hba rules
+# for certificates). cluster2 gets a parameter that waits for a restart (not in its custom_config file, so it
+# stays). Converge again: the role applies the spec of cluster1 again (the file didn't change) and restarts the
+# keepers of both clusters, after which nothing waits for a restart.
+- name: Break the spec of cluster1, and set a parameter of cluster2 that needs a restart
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Replace the spec of cluster1 with the one of stolonctl init -y
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        cmd: /usr/bin/stolonctl update --file -
+        stdin: '{"initMode": "new"}'
+      environment:
+        STOLONCTL_CLUSTER_NAME: cluster1
+        STOLONCTL_STORE_BACKEND: etcdv3
+      changed_when: true
+
+    - name: Set max_locks_per_transaction of cluster2
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv: [/usr/bin/stolonctl, update, --patch, '{"pgParameters": {"max_locks_per_transaction": "128"}}']
+      environment:
+        STOLONCTL_CLUSTER_NAME: cluster2
+        STOLONCTL_STORE_BACKEND: etcdv3
+      changed_when: true
+
+    - name: Wait until the keepers applied the specs (cluster1 without logging_collector, cluster2 pending)
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - /usr/pgsql-17/bin/psql
+          - --host=/tmp
+          - --port={{ item.port }}
+          - --no-align
+          - --tuples-only
+          - --command
+          - select coalesce(string_agg(name, ','), '') from pg_settings where pending_restart
+      loop:
+        - {port: 5433, pending: logging_collector}
+        - {port: 5434, pending: max_locks_per_transaction}
+      register: pending
+      until: item.pending in pending.stdout.split(',')
+      retries: 30
+      delay: 2
+      changed_when: false
+
+    - name: Restart the keeper of cluster1, so PostgreSQL runs with the broken spec
+      ansible.builtin.systemd_service:
+        name: stolon-keeper@cluster1
+        state: restarted
+
+    - name: Wait until PostgreSQL of cluster1 runs without logging_collector and ssl
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv: [/usr/pgsql-17/bin/psql, --host=/tmp, --port=5433, --no-align, --tuples-only, --command,
+               "select current_setting('logging_collector'), current_setting('ssl')"]
+      register: broken
+      until: broken.stdout == 'off|off'
+      retries: 30
+      delay: 2
+      changed_when: false
+
+    - name: Get the main PIDs of the keepers
+      ansible.builtin.systemd_service:
+        name: stolon-keeper@{{ item }}
+      loop: [cluster1, cluster2]
+      register: keepers_before_repair
+
+- name: Converge again, which repairs the clusters
+  ansible.builtin.import_playbook: converge.yml
+
+- name: Check the clusters were repaired
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check the keepers were restarted
+      ansible.builtin.systemd_service:
+        name: stolon-keeper@{{ item.item }}
+      loop: "{{ keepers_before_repair.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      register: keeper_after
+      failed_when: keeper_after.status.MainPID == item.status.MainPID
+
+    - name: Check PostgreSQL runs with the spec, and nothing waits for a restart
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - /usr/pgsql-17/bin/psql
+          - --host=/tmp
+          - --port={{ item }}
+          - --no-align
+          - --tuples-only
+          - --command
+          - >-
+            select current_setting('logging_collector'), current_setting('ssl'),
+            (select coalesce(string_agg(name, ','), '') from pg_settings where pending_restart)
+      loop: [5433, 5434]
+      register: repaired
+      until: repaired.stdout == 'on|on|'
+      retries: 30
+      delay: 2
+      changed_when: false
+
+    - name: Check max_locks_per_transaction of cluster2 is in effect
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv: [/usr/pgsql-17/bin/psql, --host=/tmp, --port=5434, --no-align, --tuples-only, --command,
+               show max_locks_per_transaction]
+      register: max_locks
+      failed_when: max_locks.stdout != '128'
+      changed_when: false

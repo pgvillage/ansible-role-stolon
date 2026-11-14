@@ -91,8 +91,6 @@
   vars:
     custom_config_file: "{{ stolon_config_dir }}/stolon_custom_config{% if stolon_multicluster %}-{{ cluster.key }}{% endif %}.yml"
     custom_config: "{{ {'pgParameters': stolon_wal_size_parameters} | combine((cluster.value.custom_config | default({})), recursive=True) }}"
-  notify:
-    - Update cluster spec
 
 # A new cluster is created with its cluster spec (the custom_config file above, with initMode new unless
 # the spec sets another), so the keeper runs initdb with it. Created with an empty spec, PostgreSQL started
@@ -114,6 +112,52 @@
   environment:
     STOLONCTL_CLUSTER_NAME: "{{ cluster.key }}"
     STOLONCTL_STORE_BACKEND: "{{ sysconfig.stkeeper.store_backend }}"
+
+# Apply the custom_config file whenever the spec in stolon differs from it, not only when the file changed: e.g. a
+# cluster that was created with an empty spec (stolonctl init without --file), or a spec changed with stolonctl.
+# Only the keys of the file are compared (stolon keeps others, e.g. initMode), numbers and strings by their text.
+# The spec is applied before the restart handlers run (flush_handlers in main.yml), so a restarted keeper starts
+# PostgreSQL with it. When stolon stores a value in another form (e.g. a duration 1m as 1m0s), the patch changes
+# nothing: the task then reports ok.
+- name: Apply the cluster spec when it differs from the custom_config file
+  become: true
+  become_user: "{{ stolon_user }}"
+  ansible.builtin.shell:
+    cmd: |
+      set -eo pipefail
+      before=$({{ stolon_bin_path }}/stolonctl spec)
+      if SPEC="${before}" {{ ansible_facts.python.executable | default('python3') }} - "${STOLONCTL_FILE}" <<'EOF'
+      import json, os, sys
+
+      def same(want, have):
+          if isinstance(want, dict):
+              return isinstance(have, dict) and all(same(value, have.get(key)) for key, value in want.items())
+          if isinstance(want, list):
+              return isinstance(have, list) and len(want) == len(have) and all(map(same, want, have))
+          if want is None or have is None or isinstance(want, bool) or isinstance(have, bool):
+              return want == have
+          return str(want) == str(have)
+
+      with open(sys.argv[1]) as file:
+          sys.exit(0 if same(json.load(file), json.loads(os.environ['SPEC'])) else 1)
+      EOF
+      then
+        exit 0
+      fi
+      {{ stolon_bin_path }}/stolonctl update --patch --file "${STOLONCTL_FILE}"
+      if [ "$({{ stolon_bin_path }}/stolonctl spec)" != "${before}" ]; then
+        echo "Applied ${STOLONCTL_FILE} to the spec of cluster ${STOLONCTL_CLUSTER_NAME}"
+      fi
+    executable: /bin/bash
+  vars:
+    sysconfig: "{{ stolon_default_sysconfig | combine((cluster.value.sysconfig | default({})), recursive=True) }}"
+  environment:
+    STOLONCTL_CLUSTER_NAME: "{{ cluster.key }}"
+    STOLONCTL_STORE_BACKEND: "{{ sysconfig.stkeeper.store_backend }}"
+    STOLONCTL_FILE: "{{ stolon_config_dir }}/stolon_custom_config{% if stolon_multicluster %}-{{ cluster.key }}{% endif %}.yml"
+  run_once: true
+  register: stolon_spec_update
+  changed_when: stolon_spec_update.stdout | length > 0
 
 - name: Add logrotate
   ansible.builtin.copy:
