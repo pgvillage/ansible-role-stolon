@@ -369,3 +369,66 @@
       register: max_locks
       failed_when: max_locks.stdout != '128'
       changed_when: false
+
+# Last, the check of the stolon binaries: with stolonctl missing from stolon_bin_path (as with an old stolon package,
+# which installs in /usr/local/bin), the role must fail right after the install, before it changes the units or the
+# config: here the sysconfig of the keeper of cluster1, changed behind the role's back, must stay as it is.
+- name: Check the role fails before changing anything when a stolon binary is missing
+  hosts: all
+  gather_facts: true
+  vars_files:
+    - vars/converge.yml
+  tasks:
+    - name: Move stolonctl away, as an old stolon package has it in /usr/local/bin
+      ansible.builtin.command: mv /usr/bin/stolonctl /usr/local/bin/stolonctl
+      changed_when: true
+
+    - name: Change the sysconfig of the keeper of cluster1
+      ansible.builtin.lineinfile:
+        path: /etc/sysconfig/stolon-stkeeper-cluster1
+        line: "# changed by molecule verify"
+
+    - name: Run the role, which must fail
+      block:
+        - name: Run the role
+          ansible.builtin.include_role:
+            name: pgvillage.stolon
+
+        - name: Fail, as the role didn't
+          ansible.builtin.set_fact:
+            role_failed: false
+      rescue:
+        - name: Check the role failed on the missing binary, with what to do
+          ansible.builtin.assert:
+            that:
+              - ansible_failed_task.name == 'Fail when the stolon binaries are not in stolon_bin_path'
+              - "'stolonctl not found in stolon_bin_path (/usr/bin)' in ansible_failed_result.msg"
+              - "'stolon_package_name_state: latest' in ansible_failed_result.msg"
+              - "'stolon_bin_path: /usr/local/bin' in ansible_failed_result.msg"
+            fail_msg: "{{ ansible_failed_task.name }}: {{ ansible_failed_result.msg }}"
+
+        - name: Note the role failed
+          ansible.builtin.set_fact:
+            role_failed: true
+
+    - name: Check the role failed
+      ansible.builtin.assert:
+        that: role_failed
+
+    - name: Check the sysconfig of the keeper of cluster1 still has the change
+      ansible.builtin.lineinfile:
+        path: /etc/sysconfig/stolon-stkeeper-cluster1
+        line: "# changed by molecule verify"
+      check_mode: true
+      register: sysconfig_change
+      failed_when: sysconfig_change is changed
+
+    - name: Put stolonctl back
+      ansible.builtin.command: mv /usr/local/bin/stolonctl /usr/bin/stolonctl
+      changed_when: true
+
+    - name: Undo the change of the sysconfig
+      ansible.builtin.lineinfile:
+        path: /etc/sysconfig/stolon-stkeeper-cluster1
+        line: "# changed by molecule verify"
+        state: absent
