@@ -73,6 +73,7 @@
     name: "/tmp/{{ item }}"
     state: "{{ stolon_package_name_state }}"
   loop: "{{ stolon_local_package_names }}"
+  register: stolon_local_package_install
   notify:
     - Restart stolon-stkeeper
     - Restart stolon-stsentinel
@@ -84,10 +85,33 @@
     name: "{{ item }}"
     state: "{{ stolon_package_name_state }}"
   loop: "{{ stolon_package_names }}"
+  register: stolon_package_install
   notify:
     - Restart stolon-stkeeper
     - Restart stolon-stsentinel
     - Restart stolon-stproxy
+
+# The units, scripts and handlers run the binaries from stolon_bin_path. When they aren't there (e.g. an old
+# stolon package that installed in /usr/local/bin, kept by stolon_package_name_state present), fail now, before the
+# units and config change: the keepers would fail to start (203/EXEC).
+- name: Find the stolon binaries
+  ansible.builtin.stat:
+    path: "{{ stolon_bin_path }}/{{ item }}"
+  loop: "{{ _stolon_binaries }}"
+  register: stolon_binaries
+
+# In check mode, a package that would be installed isn't there yet
+- name: Fail when the stolon binaries are not in stolon_bin_path
+  ansible.builtin.fail:
+    msg: >-
+      {{ _missing | join(', ') }} not found in stolon_bin_path ({{ stolon_bin_path }}). Probably the stolon package
+      is an old build, which installs in /usr/local/bin. Either set stolon_package_name_state: latest once (it upgrades
+      the stolon package to the build that installs in /usr/bin), or set stolon_bin_path: /usr/local/bin (old builds).
+  when:
+    - _missing | length > 0
+    - not (ansible_check_mode and (stolon_package_install is changed or stolon_local_package_install is changed))
+  vars:
+    _missing: "{{ stolon_binaries.results | rejectattr('stat.exists') | map(attribute='item') | list }}"
 
 - name: Enable profiles
   ansible.builtin.lineinfile:
