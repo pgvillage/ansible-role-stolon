@@ -1,0 +1,31 @@
+---
+# Debian and Ubuntu start the services of a package when it is installed, and the PostgreSQL packages create a main
+# cluster (postgresql@<version>-main) next to the stolon clusters. Set up before any package is installed, so
+# installing PostgreSQL leaves both to stolon. The same files as the linux role writes (tasks/packages-apt.yml), with
+# the same content and mode, so the roles don't change them back and forth.
+# postgresql.service itself needs nothing: it is an umbrella unit (ExecStart=/bin/true) for the clusters in
+# /etc/postgresql, and without clusters it starts nothing.
+- name: PostgreSQL system config folder
+  ansible.builtin.file:
+    state: directory
+    dest: /etc/postgresql-common
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Disable autostart of services and cluster creation
+  ansible.builtin.copy:
+    dest: "{{ item.key }}"
+    content: "{{ item.value }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ files | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  vars:
+    files:
+      "/usr/sbin/policy-rc.d": |
+        exit 101
+      "/etc/postgresql-common/createcluster.conf": |
+        create_main_cluster = false
